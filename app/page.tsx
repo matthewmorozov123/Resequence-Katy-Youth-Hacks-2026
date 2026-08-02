@@ -103,16 +103,6 @@ function friendlyTime(value: string) {
   return display + ":" + String(parts[1]).padStart(2, "0") + " " + suffix + (dayOffset ? " +" + dayOffset : "");
 }
 
-function activityFromText(text: string, id: number): Activity {
-  const lower = text.toLowerCase();
-  let kind: ActivityKind = "routine";
-  if (/study|project|essay|homework|read|work/.test(lower)) kind = "focus";
-  if (/phone|scroll|tiktok|message|email|game/.test(lower)) kind = "digital";
-  if (/run|walk|gym|exercise|sport/.test(lower)) kind = "movement";
-  if (/lunch|break|rest|nap|dinner/.test(lower)) kind = "rest";
-  return { id, title: text.trim(), start: "13:30", end: "14:00", kind };
-}
-
 export default function Home() {
   const [step, setStep] = useState<Step>("timeline");
   const [day, setDay] = useState("2026-08-01");
@@ -121,6 +111,8 @@ export default function Home() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [enabledSources, setEnabledSources] = useState([1, 2, 3]);
   const [quickNote, setQuickNote] = useState("");
+  const [quickCaptureLoading, setQuickCaptureLoading] = useState(false);
+  const [quickCaptureError, setQuickCaptureError] = useState<string | null>(null);
   const [activityTitle, setActivityTitle] = useState("");
   const [activityStart, setActivityStart] = useState("13:30");
   const [activityEnd, setActivityEnd] = useState("14:00");
@@ -226,10 +218,65 @@ export default function Home() {
     setActivityTitle("");
   }
 
-  function mapQuickNote() {
-    if (!quickNote.trim()) return;
-    setActivities((current) => [...current, activityFromText(quickNote, Date.now())]);
-    setQuickNote("");
+  async function mapQuickNote() {
+    const note = quickNote.trim();
+    if (!note || quickCaptureLoading) return;
+
+    setQuickCaptureLoading(true);
+    setQuickCaptureError(null);
+    try {
+      const response = await fetch("/api/quick-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      const result = (await response.json()) as {
+        activity?: Omit<Activity, "id">;
+        usedAI?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !result.activity) {
+        throw new Error(result.error || "Quick capture could not read that note.");
+      }
+
+      const captured = result.activity;
+      const capturedStart = minutes(captured.start);
+      const capturedEnd = minutes(captured.end);
+      const conflict = sortedActivities.find(
+        (activity) => capturedStart < minutes(activity.end) && capturedEnd > minutes(activity.start),
+      );
+
+      let shiftAmount = 0;
+      if (conflict) {
+        const threshold = minutes(conflict.start);
+        shiftAmount = capturedEnd - threshold;
+        setActivities((current) => [
+          ...current.map((activity) => {
+            if (minutes(activity.start) < threshold) return activity;
+            return {
+              ...activity,
+              start: timeFromMinutes(minutes(activity.start) + shiftAmount),
+              end: timeFromMinutes(minutes(activity.end) + shiftAmount),
+            };
+          }),
+          { ...captured, id: Date.now() },
+        ]);
+      } else {
+        setActivities((current) => [...current, { ...captured, id: Date.now() }]);
+      }
+
+      setQuickNote("");
+      setMoveNotice(
+        `${captured.title} was added at ${friendlyTime(captured.start)}.` +
+          (conflict
+            ? ` ${conflict.title} and later activities shifted ${shiftAmount} minutes.`
+            : " It fit into an open time slot."),
+      );
+    } catch (error) {
+      setQuickCaptureError(error instanceof Error ? error.message : "Quick capture could not read that note.");
+    } finally {
+      setQuickCaptureLoading(false);
+    }
   }
 
   function addTask(event: React.FormEvent) {
@@ -506,14 +553,26 @@ export default function Home() {
               <h2>Describe what happened.</h2>
               <textarea
                 value={quickNote}
-                onChange={(event) => setQuickNote(event.target.value)}
-                placeholder="Example: I studied chemistry, then checked messages..."
+                onChange={(event) => {
+                  setQuickNote(event.target.value);
+                  if (quickCaptureError) setQuickCaptureError(null);
+                }}
+                placeholder="Example: At 3:15 PM I went for a 45 minute run outside."
                 aria-label="Describe an activity"
+                maxLength={500}
               />
-              <button className="secondary-button" onClick={mapQuickNote} disabled={!quickNote.trim()}>
-                Add note to timeline <span>→</span>
+              <button
+                className="secondary-button"
+                onClick={mapQuickNote}
+                disabled={!quickNote.trim() || quickCaptureLoading}
+              >
+                {quickCaptureLoading ? "Understanding activity…" : "Clean up & add"} <span>→</span>
               </button>
-              <p className="helper-text">You can adjust the time and category below.</p>
+              {quickCaptureError ? (
+                <p className="quick-capture-error" role="alert">{quickCaptureError}</p>
+              ) : (
+                <p className="helper-text">Include a time. AI keeps only the activity name and places it correctly.</p>
+              )}
             </div>
 
             <form className="add-form" onSubmit={addActivity}>
@@ -764,7 +823,6 @@ export default function Home() {
                   value={editActivityDuration}
                   onChange={(event) => setEditActivityDuration(Number(event.target.value))}
                 />
-                <b>minutes</b>
               </div>
             </label>
             <div className="duration-presets" aria-label="Common activity durations">

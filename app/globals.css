@@ -155,6 +155,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .secondary-button { border: 0; width: 100%; background: var(--lime); color: var(--ink); padding: 13px 15px; margin-top: 14px; display: flex; justify-content: space-between; font-weight: 750; font-size: 12px; cursor: pointer; }
 .secondary-button:disabled { opacity: .48; cursor: not-allowed; }
 .helper-text { font-size: 10px; color: rgba(255,255,255,.5); margin: 11px 0 0; }
+.quick-capture-error { font-size: 10px; line-height: 1.45; color: #ffb7aa; margin: 11px 0 0; }
 .add-form { margin-top: 18px; padding: 26px; border: 1px solid var(--line); background: rgba(255,253,248,.48); }
 .add-form > label { display: block; margin-top: 20px; }
 .add-form input, .add-form select { width: 100%; border: 0; border-bottom: 1px solid #a9aaa6; background: transparent; padding: 7px 0 9px; color: var(--ink); }
@@ -297,9 +298,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .edit-name-field > span, .duration-field > span { display: block; font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-soft); margin-bottom: 8px; }
 .edit-name-field input { width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; color: var(--ink); padding: 9px 0 11px; font-size: 17px; font-weight: 700; }
 .duration-field { display: block; margin-top: 24px; }
-.duration-field > div { display: grid; grid-template-columns: 1fr auto; align-items: end; border-bottom: 1px solid var(--ink); }
+.duration-field > div { width: 100%; border-bottom: 1px solid var(--ink); }
 .duration-field input { width: 100%; border: 0; background: transparent; color: var(--ink); padding: 7px 0 9px; font-size: 28px; font-weight: 800; }
-.duration-field b { padding-bottom: 13px; color: var(--ink-soft); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .duration-presets { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
 .duration-presets button { border: 1px solid var(--line); background: transparent; padding: 7px 11px; border-radius: 20px; font-family: var(--font-geist-mono); font-size: 9px; cursor: pointer; }
 .duration-presets button:hover, .duration-presets button.active { background: var(--lime); color: #10233f; border-color: var(--lime-deep); }
