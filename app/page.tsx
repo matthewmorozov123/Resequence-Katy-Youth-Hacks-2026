@@ -26,9 +26,19 @@ type Task = {
 type Source = {
   id: number;
   title: string;
+  authors: string;
+  year: number;
   label: string;
+  population: string;
+  confidence: "High" | "Moderate" | "Emerging";
   summary: string;
   url: string;
+  challengeTags: string[];
+  topics: string[];
+  supportedClaims: string[];
+  unsupportedClaims: string[];
+  limitations: string;
+  experiments: string[];
 };
 
 type DayData = {
@@ -43,6 +53,7 @@ type SavedMvp = {
   tasks?: Task[];
   day?: string;
   theme?: Theme;
+  enabledSources?: number[];
 };
 
 type ProfileData = {
@@ -72,26 +83,267 @@ const sampleTasks: Task[] = [
 const evidenceSources: Source[] = [
   {
     id: 1,
-    label: "Systematic review",
-    title: "Reducing the cost of interruptions",
-    summary: "Interruption interventions can improve accuracy and shorten the time it takes to resume a primary task.",
+    title: "Reducing interruption costs",
+    authors: "Guo et al.",
+    year: 2021,
+    label: "Systematic review + meta-analysis",
+    population: "Laboratory task studies",
+    confidence: "High",
+    summary: "Interruption-management strategies improved primary-task accuracy and shortened the time needed to resume work across laboratory studies.",
     url: "https://pubmed.ncbi.nlm.nih.gov/34273814/",
+    challengeTags: ["phone", "switching", "follow-through"],
+    topics: ["Interruptions", "Focus recovery"],
+    supportedClaims: [
+      "Interruptions can create a measurable resumption cost.",
+      "A deliberate resumption strategy may make returning to the primary task easier.",
+    ],
+    unsupportedClaims: [
+      "Every interruption is harmful.",
+      "A specific interruption caused a user to miss a task.",
+    ],
+    limitations: "The included experiments were conducted in laboratories, and effects varied by intervention and task type.",
+    experiments: [
+      "Before switching away, leave a one-sentence note describing the next action.",
+      "Create one protected block with interruptions silenced.",
+    ],
   },
   {
     id: 2,
-    label: "Meta-analysis",
-    title: "If–then plans and goal attainment",
-    summary: "Specific implementation plans can help turn intentions into action, with effects that vary by context.",
-    url: "https://pubmed.ncbi.nlm.nih.gov/34054628/",
+    title: "If–then plans for young people",
+    authors: "Breitwieser & Reinelt",
+    year: 2026,
+    label: "Systematic review + meta-analysis",
+    population: "Children and young people",
+    confidence: "High",
+    summary: "Specific if–then plans produced a small-to-medium improvement in goal achievement across 42 youth studies.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/41784001/",
+    challengeTags: ["starting", "overwhelm", "follow-through", "phone"],
+    topics: ["Task initiation", "Follow-through"],
+    supportedClaims: [
+      "Linking a visible cue to a specific action can make follow-through more likely.",
+      "The user should help create the plan rather than receive a vague intention.",
+    ],
+    unsupportedClaims: [
+      "An if–then plan guarantees completion.",
+      "One plan works equally well for every person and task.",
+    ],
+    limitations: "Effects varied considerably across studies, and the average participant was younger than many teen and adult users.",
+    experiments: [
+      "Write one plan in the form: If it is [time or cue], then I will [first concrete action].",
+      "Choose a cue already present in the user's routine.",
+    ],
   },
   {
     id: 3,
-    label: "Experimental study",
-    title: "Task switching and mixing costs",
-    summary: "Switching between task types carries a measurable cognitive cost, even after practice.",
-    url: "https://pubmed.ncbi.nlm.nih.gov/21360303/",
+    title: "The cost of task switching",
+    authors: "Monsell",
+    year: 2003,
+    label: "Research review",
+    population: "Controlled cognitive-task studies",
+    confidence: "Moderate",
+    summary: "People are usually slower and more error-prone immediately after switching tasks; preparation reduces but does not remove the switch cost.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/12639695/",
+    challengeTags: ["switching", "phone", "follow-through"],
+    topics: ["Task switching", "Sequencing"],
+    supportedClaims: [
+      "Frequent changes between unlike tasks may add transition costs.",
+      "Grouping similar activities can be tested as a way to reduce boundaries between tasks.",
+    ],
+    unsupportedClaims: [
+      "All task switches are equally costly.",
+      "Multitasking alone explains a user's productivity score.",
+    ],
+    limitations: "This is an older review of mostly simple laboratory tasks, which may not represent complex school or work activities.",
+    experiments: [
+      "Batch short digital activities into one planned window.",
+      "Place a brief transition before changing to a very different task type.",
+    ],
+  },
+  {
+    id: 4,
+    title: "Notifications interrupt attention",
+    authors: "Stothart et al.",
+    year: 2015,
+    label: "Controlled experiment",
+    population: "Young adults",
+    confidence: "Moderate",
+    summary: "Phone notifications disrupted performance on an attention-demanding task even when participants did not interact with the phone.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/26121498/",
+    challengeTags: ["phone", "switching", "starting"],
+    topics: ["Notifications", "Attention"],
+    supportedClaims: [
+      "A notification can consume attention without being opened.",
+      "Muting nonessential notifications during one focus block is a reasonable experiment.",
+    ],
+    unsupportedClaims: [
+      "Phone use is always unproductive.",
+      "Everyone should avoid their phone during the first hour of the day.",
+    ],
+    limitations: "This was one controlled experiment, and notification effects can depend on the person, task, and context.",
+    experiments: [
+      "Mute nonessential notifications for one chosen focus block.",
+      "Keep planned phone use while separating it from notification-driven checking.",
+    ],
+  },
+  {
+    id: 5,
+    title: "Adding friction to screen time",
+    authors: "Hoong",
+    year: 2023,
+    label: "Preregistered field experiment",
+    population: "Smartphone users",
+    confidence: "Moderate",
+    summary: "Grayscale immediately reduced objectively measured screen time, while self-set limits produced a smaller, gradual reduction.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/36577008/",
+    challengeTags: ["phone", "follow-through"],
+    topics: ["Screen time", "Design friction"],
+    supportedClaims: [
+      "Small design barriers can reduce screen time for some users.",
+      "A self-chosen time limit can be tested without labeling all phone use as bad.",
+    ],
+    unsupportedClaims: [
+      "Lower screen time automatically improves grades or well-being.",
+      "Grayscale is effective for every user.",
+    ],
+    limitations: "The study included 112 participants and found no immediate causal improvement in well-being or academic performance.",
+    experiments: [
+      "Try grayscale or move one high-use app off the home screen for one day.",
+      "Set a visible end cue for a planned phone window and record what happens next.",
+    ],
+  },
+  {
+    id: 6,
+    title: "Why procrastination happens",
+    authors: "Steel",
+    year: 2007,
+    label: "Meta-analytic review",
+    population: "General population studies",
+    confidence: "High",
+    summary: "Task aversiveness, delayed rewards, low self-efficacy, impulsiveness, and distractibility were consistent predictors of procrastination.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/17201571/",
+    challengeTags: ["starting", "overwhelm", "follow-through"],
+    topics: ["Procrastination", "Task initiation"],
+    supportedClaims: [
+      "An unpleasant, distant, or unclear task can be harder to begin.",
+      "Making the first action smaller and more immediate is a reasonable experiment.",
+    ],
+    unsupportedClaims: [
+      "Procrastination is laziness.",
+      "A one-day timeline reveals a psychological diagnosis.",
+    ],
+    limitations: "Many relationships in the review are correlational and should not be treated as an individual diagnosis or proof of cause.",
+    experiments: [
+      "Reduce a difficult task to a concrete five-minute starting action.",
+      "Place the first action next to a reliable cue already in the day.",
+    ],
+  },
+  {
+    id: 7,
+    title: "What micro-breaks actually do",
+    authors: "Albulescu et al.",
+    year: 2022,
+    label: "Systematic review + meta-analysis",
+    population: "Work and laboratory samples",
+    confidence: "High",
+    summary: "Micro-breaks produced small improvements in vigor and fatigue, but did not reliably improve overall performance.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/36044424/",
+    challengeTags: ["overwhelm", "starting", "follow-through", "other"],
+    topics: ["Breaks", "Fatigue"],
+    supportedClaims: [
+      "A short break may help with fatigue or vigor.",
+      "Break usefulness depends on the task, break length, and person.",
+    ],
+    unsupportedClaims: [
+      "Breaks always increase output.",
+      "There is one universally optimal focus-to-break ratio.",
+    ],
+    limitations: "The overall performance effect was not statistically significant, and longer breaks appeared more useful for performance than very short ones.",
+    experiments: [
+      "Try one intentional break and compare the following block with an unplanned break.",
+      "Use a clear return cue so the break has a defined ending.",
+    ],
+  },
+  {
+    id: 8,
+    title: "Exercise and adolescent cognition",
+    authors: "Li et al.",
+    year: 2017,
+    label: "Systematic review",
+    population: "Adolescents ages 13–18",
+    confidence: "Emerging",
+    summary: "Exercise showed promising effects on some cognitive and academic outcomes in adolescents, but the evidence base was small and inconsistent.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/28185806/",
+    challengeTags: ["overwhelm", "starting", "other"],
+    topics: ["Movement", "Adolescent cognition"],
+    supportedClaims: [
+      "Movement may be worth testing as a transition or recovery activity.",
+      "The user should judge whether movement helped their next block.",
+    ],
+    unsupportedClaims: [
+      "A run immediately restores focus.",
+      "A specific exercise duration guarantees better school performance.",
+    ],
+    limitations: "The review found too few strong studies to prescribe a universal activity type, duration, or timing.",
+    experiments: [
+      "Try a brief movement transition, then rate the ease of starting the next task.",
+      "Compare movement with another type of break rather than assuming it is better.",
+    ],
+  },
+  {
+    id: 9,
+    title: "Teen sleep duration guidance",
+    authors: "American Academy of Sleep Medicine",
+    year: 2016,
+    label: "Expert consensus recommendation",
+    population: "Teenagers ages 13–18",
+    confidence: "High",
+    summary: "Teenagers should generally sleep 8–10 hours per 24 hours to support health and daytime alertness.",
+    url: "https://aasm.org/advocacy/position-statements/teen-sleep-duration-health-advisory/",
+    challengeTags: ["sleep", "starting", "overwhelm", "follow-through"],
+    topics: ["Sleep", "Daytime alertness"],
+    supportedClaims: [
+      "A suggested plan for a teen should protect an 8–10 hour sleep opportunity.",
+      "Regularly insufficient sleep can be associated with attention, behavior, and learning problems.",
+    ],
+    unsupportedClaims: [
+      "Sleeping less makes a person more productive.",
+      "Resequence can diagnose a sleep disorder.",
+    ],
+    limitations: "This is population-level health guidance, not a personalized productivity estimate or medical assessment.",
+    experiments: [
+      "Protect the user's chosen sleep window before adding optional tasks.",
+      "Compare days only after the user has recorded several sleep windows.",
+    ],
+  },
+  {
+    id: 10,
+    title: "Chronotype and adolescent performance",
+    authors: "Vidueira et al.",
+    year: 2023,
+    label: "Scoping review",
+    population: "Adolescents",
+    confidence: "Moderate",
+    summary: "Cognitive performance was often better at a person's preferred time of day, but results varied across people and outcomes.",
+    url: "https://pubmed.ncbi.nlm.nih.gov/37781788/",
+    challengeTags: ["starting", "sleep", "follow-through", "other"],
+    topics: ["Time of day", "Chronotype"],
+    supportedClaims: [
+      "There is no universally best hour for difficult work.",
+      "Repeated personal patterns should guide timing more than a generic morning rule.",
+    ],
+    unsupportedClaims: [
+      "The hardest task should always happen first thing in the morning.",
+      "One day of activity data reveals a person's chronotype.",
+    ],
+    limitations: "This was a scoping review with heterogeneous and often observational evidence, so timing advice should remain tentative.",
+    experiments: [
+      "Try the same kind of focus task in two realistic time windows and compare the result.",
+      "Prefer time windows where the user has repeatedly completed demanding work.",
+    ],
   },
 ];
+
+const defaultSourceIds = evidenceSources.map((source) => source.id);
 
 const kindLabels: Record<ActivityKind, string> = {
   focus: "Task work",
@@ -171,7 +423,7 @@ export default function Home() {
   const [activities, setActivities] = useState<Activity[]>(sampleActivities);
   const [tasks, setTasks] = useState<Task[]>(sampleTasks);
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [enabledSources, setEnabledSources] = useState([1, 2, 3]);
+  const [enabledSources, setEnabledSources] = useState(defaultSourceIds);
   const [quickNote, setQuickNote] = useState("");
   const [quickCaptureLoading, setQuickCaptureLoading] = useState(false);
   const [quickCaptureError, setQuickCaptureError] = useState<string | null>(null);
@@ -232,6 +484,11 @@ export default function Home() {
       else setTasks([]);
       if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
+      if (Array.isArray(parsed?.enabledSources)) {
+        setEnabledSources(parsed.enabledSources.filter((id) => defaultSourceIds.includes(id)));
+      } else {
+        setEnabledSources(defaultSourceIds);
+      }
       setProfileName(savedProfile.name);
       setProfileFocusArea(savedProfile.focusArea);
       setProfileCustomChallenge(savedProfile.customChallenge);
@@ -262,9 +519,9 @@ export default function Home() {
     }
     window.localStorage.setItem(
       "resequence-mvp",
-      JSON.stringify({ days: { ...days, [day]: { activities, tasks, wakeTime, sleepTime } }, day, theme }),
+      JSON.stringify({ days: { ...days, [day]: { activities, tasks, wakeTime, sleepTime } }, day, theme, enabledSources }),
     );
-  }, [activities, tasks, day, wakeTime, sleepTime, theme, hydrated]);
+  }, [activities, tasks, day, wakeTime, sleepTime, theme, enabledSources, hydrated]);
 
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => a.start.localeCompare(b.start)),
@@ -521,7 +778,7 @@ export default function Home() {
     }
     days[day] = { activities, tasks, wakeTime, sleepTime };
     const next = days[nextDay] ?? { activities: [], tasks: [], wakeTime: "07:00", sleepTime: "23:00" };
-    window.localStorage.setItem("resequence-mvp", JSON.stringify({ days, day: nextDay, theme }));
+    window.localStorage.setItem("resequence-mvp", JSON.stringify({ days, day: nextDay, theme, enabledSources }));
     setDay(nextDay);
     setActivities(next.activities);
     setTasks(next.tasks);
@@ -1144,15 +1401,44 @@ export default function Home() {
             <button className="drawer-close" onClick={() => setSourcesOpen(false)} aria-label="Close evidence library">×</button>
             <div className="eyebrow">Default library</div>
             <h2 id="source-title">Advice with receipts.</h2>
-            <p>Choose which research Resequence can use. Personal observations are always labeled separately.</p>
+            <p>Choose which research Resequence can use. Every source includes the claims it supports, its limitations, and the advice it cannot justify.</p>
+            <div className="source-library-summary">
+              <div><strong>{evidenceSources.length}</strong><span>verified sources</span></div>
+              <div><strong>{enabledSources.length}</strong><span>enabled</span></div>
+              <button type="button" onClick={() => setEnabledSources(defaultSourceIds)}>Use all</button>
+            </div>
             <div className="source-list">
               {evidenceSources.map((source) => {
                 const enabled = enabledSources.includes(source.id);
+                const relevant = source.challengeTags.includes(profileFocusArea);
                 return (
-                  <article key={source.id} className={enabled ? "enabled" : ""}>
-                    <div className="source-topline"><span>{source.label}</span><button onClick={() => setEnabledSources((current) => enabled ? current.filter((id) => id !== source.id) : [...current, source.id])} aria-pressed={enabled}>{enabled ? "On" : "Off"}</button></div>
-                    <h3>{source.title}</h3>
+                  <article key={source.id} className={[enabled ? "enabled" : "", relevant ? "relevant" : ""].filter(Boolean).join(" ")}>
+                    <div className="source-topline">
+                      <span>{source.label}</span>
+                      <button type="button" onClick={() => setEnabledSources((current) => enabled ? current.filter((id) => id !== source.id) : [...current, source.id])} aria-pressed={enabled}>{enabled ? "On" : "Off"}</button>
+                    </div>
+                    <div className="source-heading">
+                      <h3>{source.title}</h3>
+                      {relevant && <span>Matches your challenge</span>}
+                    </div>
+                    <div className="source-meta">{source.authors} · {source.year} · {source.population} · {source.confidence} confidence</div>
                     <p>{source.summary}</p>
+                    <div className="source-topics">
+                      {source.topics.map((topic) => <span key={topic}>{topic}</span>)}
+                    </div>
+                    <details className="source-guardrails">
+                      <summary>How Resequence may use this</summary>
+                      <div>
+                        <span>Supported</span>
+                        <ul>{source.supportedClaims.map((claim) => <li key={claim}>{claim}</li>)}</ul>
+                        <span>Not supported</span>
+                        <ul>{source.unsupportedClaims.map((claim) => <li key={claim}>{claim}</li>)}</ul>
+                        <span>Possible experiments</span>
+                        <ul>{source.experiments.map((experiment) => <li key={experiment}>{experiment}</li>)}</ul>
+                        <span>Limit</span>
+                        <p>{source.limitations}</p>
+                      </div>
+                    </details>
                     <a href={source.url} target="_blank" rel="noreferrer">View source ↗</a>
                   </article>
                 );

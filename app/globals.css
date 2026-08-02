@@ -289,20 +289,37 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .disclaimer p { margin: 0; color: var(--ink-soft); font-size: 10px; }
 
 .source-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(16,35,63,.45); backdrop-filter: blur(5px); display: flex; justify-content: flex-end; }
-.source-drawer { width: min(520px, 100%); height: 100%; overflow-y: auto; background: var(--paper); padding: 50px; box-shadow: -20px 0 70px rgba(16,35,63,.2); position: relative; animation: drawer-in .28s ease both; }
+.source-drawer { width: min(600px, 100%); height: 100%; overflow-y: auto; background: var(--paper); padding: 50px; box-shadow: -20px 0 70px rgba(16,35,63,.2); position: relative; animation: drawer-in .28s ease both; }
 @keyframes drawer-in { from { transform: translateX(30px); opacity: 0; } }
 .drawer-close { position: absolute; right: 25px; top: 25px; width: 38px; height: 38px; border: 1px solid var(--line); background: transparent; border-radius: 50%; font-size: 20px; cursor: pointer; }
 .source-drawer h2 { font-size: 44px; letter-spacing: -.06em; margin: 20px 0 10px; }
 .source-drawer > p { color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.source-library-summary { margin-top: 24px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr auto; gap: 18px; align-items: center; }
+.source-library-summary > div { display: flex; align-items: baseline; gap: 7px; }
+.source-library-summary strong { font-size: 19px; }
+.source-library-summary span { color: var(--ink-soft); font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.source-library-summary button { border: 0; background: transparent; color: var(--ink); padding: 8px 0; font-size: 10px; font-weight: 750; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .source-list { margin: 30px 0; border-top: 1px solid var(--line); }
 .source-list article { padding: 22px 0; border-bottom: 1px solid var(--line); opacity: .5; }
 .source-list article.enabled { opacity: 1; }
 .source-topline { display: flex; justify-content: space-between; align-items: center; }
 .source-topline > span { font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); }
-.source-topline button { border: 1px solid var(--line); background: transparent; width: 42px; height: 24px; border-radius: 20px; font-size: 9px; cursor: pointer; }
+.source-topline button { border: 1px solid var(--line); background: transparent; color: var(--ink); width: 42px; height: 24px; border-radius: 20px; font-size: 9px; cursor: pointer; }
 .enabled .source-topline button { background: var(--lime); border-color: var(--lime-deep); color: #10233f; font-weight: 800; }
-.source-list h3 { font-size: 17px; margin: 10px 0 7px; }
+.source-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+.source-list h3 { font-size: 17px; margin: 0; }
+.source-heading > span { border-radius: 20px; background: rgba(160, 200, 32, .16); color: var(--lime-deep); padding: 5px 8px; font-family: var(--font-geist-mono); font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.source-meta { margin-top: 7px; color: var(--ink-soft); font-family: var(--font-geist-mono); font-size: 8px; line-height: 1.5; }
 .source-list p { font-size: 11px; line-height: 1.55; color: var(--ink-soft); }
+.source-topics { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.source-topics span { border: 1px solid var(--line); border-radius: 20px; padding: 5px 8px; color: var(--ink-soft); font-size: 8px; }
+.source-guardrails { margin: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.source-guardrails summary { padding: 11px 0; color: var(--ink); font-size: 10px; font-weight: 750; cursor: pointer; }
+.source-guardrails > div { padding: 0 0 12px; }
+.source-guardrails > div > span { display: block; margin-top: 11px; color: var(--ink-soft); font-family: var(--font-geist-mono); font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+.source-guardrails ul { margin: 6px 0 0; padding-left: 17px; }
+.source-guardrails li { margin: 5px 0; color: var(--ink); font-size: 10px; line-height: 1.45; }
+.source-guardrails > div > p { margin: 6px 0 0; }
 .source-list a { color: var(--ink); font-size: 10px; }
 .primary-button.full { width: 100%; }
 
