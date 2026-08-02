@@ -306,6 +306,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .edit-modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(6,15,28,.64); backdrop-filter: blur(8px); display: grid; place-items: center; padding: 22px; }
 .edit-modal { width: min(540px, 100%); background: var(--paper); color: var(--ink); padding: 44px; box-shadow: 0 30px 100px rgba(0,0,0,.32); position: relative; animation: edit-modal-in .24s ease both; }
 @keyframes edit-modal-in { from { transform: translateY(12px) scale(.985); opacity: 0; } }
+.profile-backdrop { z-index: 80; background: rgba(6,15,28,.78); }
+.profile-modal { width: min(520px, 100%); background: var(--paper); color: var(--ink); padding: 48px; box-shadow: 0 30px 100px rgba(0,0,0,.4); animation: edit-modal-in .28s ease both; }
+.profile-mark { width: 58px; height: 58px; display: grid; place-items: center; margin-bottom: 26px; border-radius: 50%; background: var(--blue); color: #10233f; font-size: 16px; font-weight: 850; }
+.profile-modal h2 { max-width: 390px; margin: 19px 0 10px; font-size: 46px; line-height: 1; letter-spacing: -.06em; }
+.profile-modal > p { margin: 0 0 30px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.profile-modal label > span { display: block; margin-bottom: 8px; font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-soft); }
+.profile-modal input { width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; color: var(--ink); padding: 10px 0 12px; font-size: 19px; font-weight: 700; }
+.profile-modal .primary-button { width: 100%; margin-top: 28px; }
+.profile-modal > small { display: block; margin-top: 13px; text-align: center; color: var(--ink-soft); font-size: 9px; }
 .edit-icon { width: 46px; height: 46px; display: grid; place-items: center; background: var(--blue); color: var(--ink); border-radius: 50%; font-size: 20px; margin-bottom: 25px; }
 .edit-modal h2 { font-size: 40px; line-height: 1.03; letter-spacing: -.055em; margin: 18px 0 30px; padding-right: 30px; }
 .edit-name-field > span, .edit-priority-field > span, .duration-field > span { display: block; font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-soft); margin-bottom: 8px; }
@@ -362,7 +371,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-shell[data-theme="dark"] .outcome-done.active { border-color: var(--lime-deep); color: #10233f; }
 .app-shell[data-theme="dark"] .source-drawer,
 .app-shell[data-theme="dark"] .tomorrow-timeline,
-.app-shell[data-theme="dark"] .edit-modal { background: #111e2e; }
+.app-shell[data-theme="dark"] .edit-modal,
+.app-shell[data-theme="dark"] .profile-modal { background: #111e2e; }
 .app-shell[data-theme="dark"] .move-toast:not(.choosing) { background: #eef2f6; color: #0b1421; }
 .app-shell[data-theme="dark"] select {
   color-scheme: dark;
@@ -446,6 +456,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .source-drawer { padding: 45px 24px 30px; }
   .edit-modal { padding: 35px 24px 25px; }
   .edit-modal h2 { font-size: 33px; }
+  .profile-modal { padding: 36px 24px 28px; }
+  .profile-modal h2 { font-size: 38px; }
   .modal-actions { justify-content: space-between; }
   .move-toast { bottom: 88px; }
 }

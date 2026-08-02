@@ -131,6 +131,13 @@ function durationLabel(value: number) {
   return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
 }
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("priorities");
   const [day, setDay] = useState("2026-08-01");
@@ -148,6 +155,9 @@ export default function Home() {
   const [taskTitle, setTaskTitle] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileDraft, setProfileDraft] = useState("");
   const [theme, setTheme] = useState<Theme>("light");
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dropTargetId, setDropTargetId] = useState<number | null>(null);
@@ -160,9 +170,11 @@ export default function Home() {
 
   useEffect(() => {
     let parsed: SavedMvp | null = null;
+    let savedProfile = "";
     try {
       const saved = window.localStorage.getItem("resequence-mvp");
       if (saved) parsed = JSON.parse(saved);
+      savedProfile = window.localStorage.getItem("resequence-profile-name")?.trim() ?? "";
     } catch {
       // Keep the polished demo state if local data is unavailable.
     }
@@ -175,6 +187,9 @@ export default function Home() {
       else if (Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
       if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
+      setProfileName(savedProfile);
+      setProfileDraft(savedProfile);
+      setProfileChecked(true);
       setDay(selectedDay);
       if (parsed?.theme === "light" || parsed?.theme === "dark") {
         setTheme(parsed.theme);
@@ -457,6 +472,14 @@ export default function Home() {
     setStep("priorities");
   }
 
+  function saveProfileName(event: React.FormEvent) {
+    event.preventDefault();
+    const name = profileDraft.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    window.localStorage.setItem("resequence-profile-name", name);
+    setProfileName(name);
+  }
+
   const steps: { id: Step; number: string; label: string }[] = [
     { id: "priorities", number: "01", label: "Priorities" },
     { id: "timeline", number: "02", label: "Map your day" },
@@ -485,7 +508,11 @@ export default function Home() {
             <span aria-hidden="true">{theme === "light" ? "☾" : "☀"}</span>
             <b>{theme === "light" ? "Dark" : "Light"}</b>
           </button>
-          <button className="avatar" aria-label="Demo profile">AR</button>
+          <button
+            className="avatar"
+            aria-label={profileName ? profileName + "'s profile" : "Profile"}
+            title={profileName || "Profile"}
+          >{initials(profileName)}</button>
         </div>
       </header>
 
@@ -894,6 +921,38 @@ export default function Home() {
             <p>Insights describe patterns and evidence-informed hypotheses. They do not prove what caused your productivity or replace medical advice.</p>
           </div>
         </section>
+      )}
+
+      {profileChecked && !profileName && (
+        <div className="edit-modal-backdrop profile-backdrop" role="presentation">
+          <form
+            className="profile-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-title"
+            onSubmit={saveProfileName}
+          >
+            <div className="profile-mark" aria-hidden="true">{initials(profileDraft)}</div>
+            <div className="eyebrow">Welcome to Resequence</div>
+            <h2 id="profile-title">What should we call you?</h2>
+            <p>Your name stays on this device and personalizes your daily workspace.</p>
+            <label>
+              <span>Your name</span>
+              <input
+                value={profileDraft}
+                onChange={(event) => setProfileDraft(event.target.value)}
+                placeholder="e.g. Alex Rivera"
+                autoComplete="name"
+                maxLength={60}
+                autoFocus
+              />
+            </label>
+            <button className="primary-button" type="submit" disabled={!profileDraft.trim()}>
+              Enter my workspace <span>→</span>
+            </button>
+            <small>Saved only in this browser.</small>
+          </form>
+        </div>
       )}
 
       {sourcesOpen && (
