@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 
 type Step = "timeline" | "tasks" | "insights";
 type ActivityKind = "focus" | "digital" | "movement" | "routine" | "rest";
+type Theme = "light" | "dark";
+
+type PendingMove = {
+  activityId: number;
+  targetTitle?: string;
+};
 
 type Activity = {
   id: number;
@@ -120,9 +126,15 @@ export default function Home() {
   const [taskTitle, setTaskTitle] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [theme, setTheme] = useState<Theme>("light");
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<number | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [moveStart, setMoveStart] = useState("");
+  const [moveEnd, setMoveEnd] = useState("");
 
   useEffect(() => {
-    let parsed: { activities?: Activity[]; tasks?: Task[]; day?: string } | null = null;
+    let parsed: { activities?: Activity[]; tasks?: Task[]; day?: string; theme?: Theme } | null = null;
     try {
       const saved = window.localStorage.getItem("resequence-mvp");
       if (saved) parsed = JSON.parse(saved);
@@ -133,14 +145,19 @@ export default function Home() {
       if (Array.isArray(parsed?.activities)) setActivities(parsed.activities);
       if (Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
       if (typeof parsed?.day === "string") setDay(parsed.day);
+      if (parsed?.theme === "light" || parsed?.theme === "dark") {
+        setTheme(parsed.theme);
+      } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setTheme("dark");
+      }
       setHydrated(true);
     });
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem("resequence-mvp", JSON.stringify({ activities, tasks, day }));
-  }, [activities, tasks, day, hydrated]);
+    window.localStorage.setItem("resequence-mvp", JSON.stringify({ activities, tasks, day, theme }));
+  }, [activities, tasks, day, theme, hydrated]);
 
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => a.start.localeCompare(b.start)),
@@ -225,6 +242,32 @@ export default function Home() {
     setTasks((current) => current.map((task) => (task.id === id ? { ...task, [field]: value } : task)));
   }
 
+  function openMoveDialog(activity: Activity, targetTitle?: string) {
+    setPendingMove({ activityId: activity.id, targetTitle });
+    setMoveStart(activity.start);
+    setMoveEnd(activity.end);
+  }
+
+  function handleActivityDrop(event: React.DragEvent, target: Activity) {
+    event.preventDefault();
+    const id = draggedId ?? Number(event.dataTransfer.getData("text/plain"));
+    const activity = activities.find((item) => item.id === id);
+    if (activity && activity.id !== target.id) openMoveDialog(activity, target.title);
+    setDraggedId(null);
+    setDropTargetId(null);
+  }
+
+  function confirmActivityTime(event: React.FormEvent) {
+    event.preventDefault();
+    if (!pendingMove || minutes(moveEnd) <= minutes(moveStart)) return;
+    setActivities((current) => current.map((activity) => (
+      activity.id === pendingMove.activityId
+        ? { ...activity, start: moveStart, end: moveEnd }
+        : activity
+    )));
+    setPendingMove(null);
+  }
+
   function resetDemo() {
     setActivities(sampleActivities);
     setTasks(sampleTasks);
@@ -240,7 +283,7 @@ export default function Home() {
   ];
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={theme}>
       <header className="topbar">
         <button className="brand" onClick={() => setStep("timeline")} aria-label="Resequence home">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
@@ -250,6 +293,15 @@ export default function Home() {
           <span className="save-state"><span /> Saved on this device</span>
           <button className="quiet-button" onClick={() => setSourcesOpen(true)}>
             Evidence library <b>{enabledSources.length}</b>
+          </button>
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}
+            aria-label={"Switch to " + (theme === "light" ? "dark" : "light") + " mode"}
+            aria-pressed={theme === "dark"}
+          >
+            <span aria-hidden="true">{theme === "light" ? "☾" : "☀"}</span>
+            <b>{theme === "light" ? "Dark" : "Light"}</b>
           </button>
           <button className="avatar" aria-label="Demo profile">AR</button>
         </div>
@@ -302,23 +354,50 @@ export default function Home() {
                 )}
                 {sortedActivities.map((activity) => (
                   <article
-                    className="timeline-item"
+                    className={"timeline-item" + (dropTargetId === activity.id ? " drop-target" : "") + (draggedId === activity.id ? " dragging" : "")}
                     key={activity.id}
                     style={{ minHeight: String(Math.max(76, duration(activity.start, activity.end) * 1.15)) + "px" }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      if (draggedId !== activity.id) setDropTargetId(activity.id);
+                    }}
+                    onDragLeave={() => setDropTargetId((current) => current === activity.id ? null : current)}
+                    onDrop={(event) => handleActivityDrop(event, activity)}
                   >
                     <time>{friendlyTime(activity.start)}<small>{duration(activity.start, activity.end)} min</small></time>
                     <div className="timeline-dot" />
-                    <div className={"activity-card kind-" + activity.kind}>
+                    <div
+                      className={"activity-card kind-" + activity.kind}
+                      draggable
+                      onDragStart={(event) => {
+                        setDraggedId(activity.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", String(activity.id));
+                      }}
+                      onDragEnd={() => {
+                        setDraggedId(null);
+                        setDropTargetId(null);
+                      }}
+                    >
                       <div>
                         <span className="activity-kind">{kindLabels[activity.kind]}</span>
                         <h3>{activity.title}</h3>
                         <p>{friendlyTime(activity.start)}–{friendlyTime(activity.end)}</p>
                       </div>
-                      <button
-                        className="remove-button"
-                        onClick={() => setActivities((current) => current.filter((item) => item.id !== activity.id))}
-                        aria-label={"Remove " + activity.title}
-                      >×</button>
+                      <div className="activity-actions">
+                        <button
+                          className="drag-handle"
+                          onClick={() => openMoveDialog(activity)}
+                          aria-label={"Move " + activity.title + " to a different time"}
+                          title="Drag to move or click to change time"
+                        ><span aria-hidden="true">⠿</span><b>Move</b></button>
+                        <button
+                          className="remove-button"
+                          onClick={() => setActivities((current) => current.filter((item) => item.id !== activity.id))}
+                          aria-label={"Remove " + activity.title}
+                        >×</button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -555,6 +634,41 @@ export default function Home() {
           </aside>
         </div>
       )}
+
+      {pendingMove && (() => {
+        const activity = activities.find((item) => item.id === pendingMove.activityId);
+        if (!activity) return null;
+        const validTime = moveStart !== "" && moveEnd !== "" && minutes(moveEnd) > minutes(moveStart);
+        return (
+          <div className="time-modal-backdrop" role="presentation" onMouseDown={() => setPendingMove(null)}>
+            <form
+              className="time-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="time-modal-title"
+              onMouseDown={(event) => event.stopPropagation()}
+              onSubmit={confirmActivityTime}
+            >
+              <button className="drawer-close" type="button" onClick={() => setPendingMove(null)} aria-label="Cancel moving activity">×</button>
+              <div className="move-icon" aria-hidden="true">↕</div>
+              <div className="eyebrow">Activity moved</div>
+              <h2 id="time-modal-title">What time was<br />“{activity.title}”?</h2>
+              {pendingMove.targetTitle && <p className="move-context">You placed it near <strong>{pendingMove.targetTitle}</strong>. Confirm the actual time so your timeline stays accurate.</p>}
+              {!pendingMove.targetTitle && <p className="move-context">Choose its new time and Resequence will place it correctly in your day.</p>}
+              <div className="time-fields">
+                <label><span>Started</span><input type="time" value={moveStart} onChange={(event) => setMoveStart(event.target.value)} autoFocus /></label>
+                <span className="time-arrow" aria-hidden="true">→</span>
+                <label><span>Ended</span><input type="time" value={moveEnd} onChange={(event) => setMoveEnd(event.target.value)} /></label>
+              </div>
+              {!validTime && <p className="time-error">End time must be later than the start time.</p>}
+              <div className="modal-actions">
+                <button className="back-button" type="button" onClick={() => setPendingMove(null)}>Cancel</button>
+                <button className="primary-button" type="submit" disabled={!validTime}>Update timeline <span>→</span></button>
+              </div>
+            </form>
+          </div>
+        );
+      })()}
     </main>
   );
 }

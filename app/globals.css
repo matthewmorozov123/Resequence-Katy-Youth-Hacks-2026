@@ -31,7 +31,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   outline-offset: 3px;
 }
 
-.app-shell { min-height: 100vh; }
+.app-shell { min-height: 100vh; background: var(--paper); color: var(--ink); color-scheme: light; transition: background-color .22s ease, color .22s ease; }
+.app-shell[data-theme="dark"] {
+  --ink: #eef2f6;
+  --ink-soft: #aab5c4;
+  --paper: #0b1421;
+  --paper-deep: #121e2e;
+  --white: #152235;
+  --line: #304054;
+  --lime: #c7ed34;
+  --lime-deep: #b3db29;
+  --blue: #35517f;
+  --coral: #a5534d;
+  --gold: #6d5734;
+  --shadow: 0 20px 70px rgba(0, 0, 0, .34);
+  color-scheme: dark;
+}
 .topbar {
   height: 76px;
   display: flex;
@@ -56,6 +71,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .save-state > span { width: 7px; height: 7px; border-radius: 50%; background: #4d9c60; }
 .quiet-button { border: 0; border-left: 1px solid var(--line); background: transparent; padding: 5px 0 5px 18px; font-size: 13px; cursor: pointer; }
 .quiet-button b { display: inline-flex; width: 21px; height: 21px; justify-content: center; align-items: center; background: var(--ink); color: white; border-radius: 50%; margin-left: 5px; font-size: 11px; }
+.theme-toggle { height: 38px; border: 1px solid var(--line); background: transparent; border-radius: 24px; padding: 0 13px 0 10px; display: flex; align-items: center; gap: 7px; cursor: pointer; transition: background .18s ease, border-color .18s ease; }
+.theme-toggle:hover { background: var(--paper-deep); }
+.theme-toggle span { font-size: 17px; line-height: 1; }
+.theme-toggle b { font-size: 10px; letter-spacing: .03em; }
 .avatar { width: 38px; height: 38px; border: 0; background: var(--blue); border-radius: 50%; font-size: 12px; font-weight: 800; cursor: pointer; }
 
 .stepper {
@@ -94,8 +113,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .timeline-item time { font-family: var(--font-geist-mono); font-size: 10px; padding-top: 20px; color: var(--ink-soft); text-align: right; }
 .timeline-item time small { display: block; margin-top: 7px; color: #9a9e9b; font-size: 8px; }
 .timeline-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); justify-self: center; margin-top: 24px; z-index: 1; box-shadow: 0 0 0 5px var(--paper); }
-.activity-card { min-height: 66px; margin-bottom: 10px; padding: 15px 18px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(16,35,63,.11); transition: transform .18s ease, box-shadow .18s ease; }
+.activity-card { min-height: 66px; margin-bottom: 10px; padding: 15px 18px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(16,35,63,.11); transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease; cursor: grab; }
+.activity-card:active { cursor: grabbing; }
 .activity-card:hover { transform: translateX(4px); box-shadow: 0 8px 24px rgba(16,35,63,.08); }
+.timeline-item.dragging .activity-card { opacity: .42; transform: scale(.985); }
+.timeline-item.drop-target .activity-card { outline: 2px dashed var(--lime-deep); outline-offset: 4px; transform: translateX(10px); }
 .kind-focus { background: var(--blue); }
 .kind-digital { background: var(--coral); }
 .kind-movement { background: var(--lime); }
@@ -104,6 +126,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .activity-kind { font-family: var(--font-geist-mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; opacity: .68; }
 .activity-card h3 { margin: 3px 0 1px; font-size: 15px; letter-spacing: -.02em; }
 .activity-card p { margin: 0; font-size: 10px; opacity: .66; }
+.activity-actions { display: flex; align-items: center; gap: 4px; }
+.drag-handle { min-width: 62px; height: 30px; border: 1px solid rgba(16,35,63,.18); background: rgba(255,255,255,.24); border-radius: 18px; display: flex; align-items: center; justify-content: center; gap: 5px; cursor: grab; opacity: 0; transform: translateX(5px); transition: opacity .16s ease, transform .16s ease, background .16s ease; }
+.drag-handle span { font-size: 16px; line-height: 1; }
+.drag-handle b { font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.activity-card:hover .drag-handle, .activity-card:focus-within .drag-handle { opacity: .72; transform: translateX(0); }
+.drag-handle:hover { opacity: 1 !important; background: rgba(255,255,255,.48); }
 .remove-button { border: 0; background: transparent; width: 30px; height: 30px; font-size: 20px; line-height: 1; cursor: pointer; opacity: .45; border-radius: 50%; }
 .remove-button:hover { background: rgba(255,255,255,.35); opacity: 1; }
 .empty-state { border: 1px dashed var(--line); padding: 45px; margin-left: 143px; text-align: center; }
@@ -254,6 +282,46 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .source-list a { color: var(--ink); font-size: 10px; }
 .primary-button.full { width: 100%; }
 
+.time-modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(6,15,28,.64); backdrop-filter: blur(8px); display: grid; place-items: center; padding: 22px; }
+.time-modal { width: min(540px, 100%); background: var(--paper); color: var(--ink); padding: 44px; box-shadow: 0 30px 100px rgba(0,0,0,.32); position: relative; animation: modal-in .24s ease both; }
+@keyframes modal-in { from { transform: translateY(12px) scale(.985); opacity: 0; } }
+.move-icon { width: 46px; height: 46px; display: grid; place-items: center; background: var(--lime); color: #10233f; border-radius: 50%; font-size: 22px; margin-bottom: 25px; }
+.time-modal h2 { font-size: 40px; line-height: 1.03; letter-spacing: -.055em; margin: 18px 0 13px; padding-right: 30px; }
+.move-context { color: var(--ink-soft); font-size: 12px; line-height: 1.6; max-width: 430px; }
+.time-fields { display: grid; grid-template-columns: 1fr 26px 1fr; align-items: end; gap: 12px; margin-top: 28px; }
+.time-fields label > span { display: block; font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-soft); margin-bottom: 8px; }
+.time-fields input { width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; color: var(--ink); padding: 8px 0 10px; font-weight: 700; }
+.time-arrow { text-align: center; padding-bottom: 11px; color: var(--ink-soft); }
+.time-error { color: var(--coral); font-size: 10px; margin: 9px 0 0; }
+.modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; border-top: 1px solid var(--line); margin-top: 30px; padding-top: 20px; }
+
+.app-shell[data-theme="dark"] .topbar { background: rgba(11,20,33,.92); }
+.app-shell[data-theme="dark"] .sticky-action { background: rgba(11,20,33,.94); }
+.app-shell[data-theme="dark"] .add-form { background: rgba(21,34,53,.52); }
+.app-shell[data-theme="dark"] .task-row { background: rgba(255,255,255,.025); }
+.app-shell[data-theme="dark"] .activity-card { border-color: rgba(255,255,255,.12); }
+.app-shell[data-theme="dark"] .activity-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,.25); }
+.app-shell[data-theme="dark"] .drag-handle { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.08); }
+.app-shell[data-theme="dark"] .kind-routine { background: #273448; }
+.app-shell[data-theme="dark"] .kind-rest { background: #665033; }
+.app-shell[data-theme="dark"] .kind-movement { color: #10233f; }
+.app-shell[data-theme="dark"] .quick-entry,
+.app-shell[data-theme="dark"] .formula-card,
+.app-shell[data-theme="dark"] .results-hero { background: #081426; color: #fffdf8; }
+.app-shell[data-theme="dark"] .primary-button { background: var(--lime); border-color: var(--lime); color: #10233f; }
+.app-shell[data-theme="dark"] .primary-button:hover { background: #d5f45d; }
+.app-shell[data-theme="dark"] .secondary-button,
+.app-shell[data-theme="dark"] .accepted-button,
+.app-shell[data-theme="dark"] .insight-card.experiment { color: #10233f; }
+.app-shell[data-theme="dark"] .task-check,
+.app-shell[data-theme="dark"] .change-list span,
+.app-shell[data-theme="dark"] .quiet-button b { background: var(--lime); color: #10233f; }
+.app-shell[data-theme="dark"] .insight-card.worked { background: #192638; }
+.app-shell[data-theme="dark"] .insight-card.friction { background: #8e4b48; }
+.app-shell[data-theme="dark"] .source-drawer,
+.app-shell[data-theme="dark"] .tomorrow-timeline,
+.app-shell[data-theme="dark"] .time-modal { background: #111e2e; }
+
 @media (max-width: 1000px) {
   .page-grid { grid-template-columns: 1fr; gap: 20px; }
   .side-column { padding-top: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -274,6 +342,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .topbar { padding: 0 18px; height: 66px; }
   .topbar-actions { gap: 8px; }
   .save-state, .quiet-button { display: none; }
+  .theme-toggle { width: 38px; padding: 0; justify-content: center; }
+  .theme-toggle b { display: none; }
   .stepper { padding: 12px 18px 0; }
   .stepper button { font-size: 0; }
   .stepper button > span { font-size: 10px; }
@@ -288,6 +358,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .timeline-item time { font-size: 8px; }
   .activity-card { padding: 13px; }
   .activity-card h3 { font-size: 13px; }
+  .drag-handle { opacity: .7; min-width: 34px; width: 34px; padding: 0; transform: none; }
+  .drag-handle b { display: none; }
   .empty-state { margin-left: 98px; padding: 25px 15px; }
   .sticky-action { padding: 12px 18px; }
   .sticky-action > div:first-child, .analysis-ready, .back-button { display: none; }
@@ -311,6 +383,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .disclaimer { margin: 0 18px; display: block; }
   .disclaimer p { margin-top: 8px; line-height: 1.5; }
   .source-drawer { padding: 45px 24px 30px; }
+  .time-modal { padding: 35px 24px 25px; }
+  .time-modal h2 { font-size: 33px; }
+  .time-fields { grid-template-columns: 1fr 20px 1fr; }
+  .modal-actions { justify-content: space-between; }
 }
 
 @media (prefers-reduced-motion: reduce) {
