@@ -794,19 +794,29 @@ export default function Home() {
     if (!source || !target || source.id === target.id) return;
 
     const sourceDuration = duration(source.start, source.end);
+    const targetDuration = duration(target.start, target.end);
+    const sourceStart = minutes(source.start);
     const targetStart = minutes(target.start);
-    const placement = placeActivityWithCollisionCascade(activities, {
-      ...source,
-      start: timeFromMinutes(targetStart),
-      end: timeFromMinutes(targetStart + sourceDuration),
-    });
-    setActivities(placement.activities);
+    setActivities((current) => current.map((activity) => {
+      if (activity.id === source.id) {
+        return {
+          ...activity,
+          start: timeFromMinutes(targetStart),
+          end: timeFromMinutes(targetStart + sourceDuration),
+        };
+      }
+      if (activity.id === target.id) {
+        return {
+          ...activity,
+          start: timeFromMinutes(sourceStart),
+          end: timeFromMinutes(sourceStart + targetDuration),
+        };
+      }
+      return activity;
+    }));
 
     setMoveNotice(
-      source.title + " now starts at " + friendlyTime(target.start) + ". " +
-      placement.shiftedCount + " overlapping " +
-      (placement.shiftedCount === 1 ? "activity was" : "activities were") +
-      " shifted only as far as needed; later activities kept their original times once a gap absorbed the move.",
+      source.title + " and " + target.title + " switched times. No other activities moved.",
     );
     setMoveModeId(null);
   }
@@ -1222,7 +1232,7 @@ export default function Home() {
           <div className="sticky-action">
             <button className="back-button" onClick={() => setStep("priorities")}>← Back to priorities</button>
             <div className="action-spacer" />
-            <div><strong>Timeline ready?</strong><span>Next, report what you finished.</span></div>
+            <div><strong>Timeline ready?</strong>{" "}<span>Next, report what you finished.</span></div>
             <button className="primary-button" onClick={() => setStep("outcomes")} disabled={!tasks.length}>
               Next: review outcomes <span>→</span>
             </button>
