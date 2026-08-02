@@ -849,7 +849,14 @@ export default function Home() {
       )}
 
       {moveNotice && (
-        <div className={"move-toast" + (moveModeId !== null ? " choosing" : "")} role="status" aria-live="polite">
+        <div
+          className={"move-toast" + (moveModeId !== null ? " choosing" : "")}
+          role="status"
+          aria-live="polite"
+          onAnimationEnd={(event) => {
+            if (event.currentTarget === event.target && moveModeId === null) setMoveNotice(null);
+          }}
+        >
           <span className="move-toast-icon" aria-hidden="true">{moveModeId !== null ? "↕" : "✓"}</span>
           <p>{moveNotice}</p>
           <button
