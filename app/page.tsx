@@ -45,6 +45,12 @@ type SavedMvp = {
   theme?: Theme;
 };
 
+type ProfileData = {
+  name: string;
+  focusArea: string;
+  focusGoal: string;
+};
+
 const sampleActivities: Activity[] = [
   { id: 1, title: "Morning scroll", start: "07:00", end: "07:40", kind: "digital" },
   { id: 2, title: "Breakfast + shower", start: "07:40", end: "08:25", kind: "routine" },
@@ -93,6 +99,16 @@ const kindLabels: Record<ActivityKind, string> = {
   routine: "Routine",
   rest: "Rest",
 };
+
+const productivityChallenges = [
+  { value: "phone", label: "Spending too long on my phone" },
+  { value: "starting", label: "Starting difficult tasks" },
+  { value: "switching", label: "Switching activities too often" },
+  { value: "overwhelm", label: "Procrastinating when I feel overwhelmed" },
+  { value: "sleep", label: "Keeping a consistent sleep schedule" },
+  { value: "follow-through", label: "Finishing what I planned" },
+  { value: "other", label: "Something else" },
+];
 
 function minutes(value: string) {
   const parts = value.split(":").map(Number);
@@ -165,7 +181,12 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
   const [profileName, setProfileName] = useState("");
+  const [profileFocusArea, setProfileFocusArea] = useState("");
+  const [profileFocusGoal, setProfileFocusGoal] = useState("");
   const [profileDraft, setProfileDraft] = useState("");
+  const [profileFocusAreaDraft, setProfileFocusAreaDraft] = useState("");
+  const [profileFocusGoalDraft, setProfileFocusGoalDraft] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dropTargetId, setDropTargetId] = useState<number | null>(null);
@@ -178,11 +199,21 @@ export default function Home() {
 
   useEffect(() => {
     let parsed: SavedMvp | null = null;
-    let savedProfile = "";
+    let savedProfile: ProfileData = { name: "", focusArea: "", focusGoal: "" };
     try {
       const saved = window.localStorage.getItem("resequence-mvp");
       if (saved) parsed = JSON.parse(saved);
-      savedProfile = window.localStorage.getItem("resequence-profile-name")?.trim() ?? "";
+      const storedProfile = window.localStorage.getItem("resequence-profile");
+      if (storedProfile) {
+        const profile = JSON.parse(storedProfile) as Partial<ProfileData>;
+        savedProfile = {
+          name: typeof profile.name === "string" ? profile.name.trim() : "",
+          focusArea: typeof profile.focusArea === "string" ? profile.focusArea : "",
+          focusGoal: typeof profile.focusGoal === "string" ? profile.focusGoal.trim() : "",
+        };
+      } else {
+        savedProfile.name = window.localStorage.getItem("resequence-profile-name")?.trim() ?? "";
+      }
     } catch {
       // Keep the polished demo state if local data is unavailable.
     }
@@ -197,8 +228,12 @@ export default function Home() {
       else setTasks([]);
       if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
-      setProfileName(savedProfile);
-      setProfileDraft(savedProfile);
+      setProfileName(savedProfile.name);
+      setProfileFocusArea(savedProfile.focusArea);
+      setProfileFocusGoal(savedProfile.focusGoal);
+      setProfileDraft(savedProfile.name);
+      setProfileFocusAreaDraft(savedProfile.focusArea);
+      setProfileFocusGoalDraft(savedProfile.focusGoal);
       setProfileChecked(true);
       setDay(selectedDay);
       if (parsed?.theme === "light" || parsed?.theme === "dark") {
@@ -497,12 +532,18 @@ export default function Home() {
     setStep("priorities");
   }
 
-  function saveProfileName(event: React.FormEvent) {
+  function saveProfile(event: React.FormEvent) {
     event.preventDefault();
     const name = profileDraft.trim().replace(/\s+/g, " ");
-    if (!name) return;
+    const focusGoal = profileFocusGoalDraft.trim().replace(/\s+/g, " ");
+    if (!name || !profileFocusAreaDraft || !focusGoal) return;
+    const profile = { name, focusArea: profileFocusAreaDraft, focusGoal };
+    window.localStorage.setItem("resequence-profile", JSON.stringify(profile));
     window.localStorage.setItem("resequence-profile-name", name);
     setProfileName(name);
+    setProfileFocusArea(profileFocusAreaDraft);
+    setProfileFocusGoal(focusGoal);
+    setProfileOpen(false);
   }
 
   const steps: { id: Step; number: string; label: string }[] = [
@@ -537,6 +578,13 @@ export default function Home() {
             className="avatar"
             aria-label={profileName ? profileName + "'s profile" : "Profile"}
             title={profileName || "Profile"}
+            aria-expanded={profileOpen}
+            onClick={() => {
+              setProfileDraft(profileName);
+              setProfileFocusAreaDraft(profileFocusArea);
+              setProfileFocusGoalDraft(profileFocusGoal);
+              setProfileOpen((current) => !current);
+            }}
           >{initials(profileName)}</button>
         </div>
       </header>
@@ -952,34 +1000,100 @@ export default function Home() {
         </section>
       )}
 
-      {profileChecked && !profileName && (
+      {profileChecked && (!profileName || !profileFocusArea || !profileFocusGoal) && (
         <div className="edit-modal-backdrop profile-backdrop" role="presentation">
           <form
             className="profile-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="profile-title"
-            onSubmit={saveProfileName}
+            onSubmit={saveProfile}
           >
             <div className="profile-mark" aria-hidden="true">{initials(profileDraft)}</div>
             <div className="eyebrow">Welcome to Resequence</div>
-            <h2 id="profile-title">What should we call you?</h2>
-            <p>Your name stays on this device and personalizes your daily workspace.</p>
-            <label>
-              <span>Your name</span>
-              <input
-                value={profileDraft}
-                onChange={(event) => setProfileDraft(event.target.value)}
-                placeholder="e.g. Bill Gates"
-                autoComplete="name"
-                maxLength={60}
-                autoFocus
-              />
-            </label>
-            <button className="primary-button" type="submit" disabled={!profileDraft.trim()}>
-              Enter my workspace <span>→</span>
+            <h2 id="profile-title">What should we help you improve?</h2>
+            <p>Your productivity focus helps Resequence connect your day to the problem you actually want to solve.</p>
+            <div className="profile-fields">
+              <label>
+                <span>Your name</span>
+                <input
+                  value={profileDraft}
+                  onChange={(event) => setProfileDraft(event.target.value)}
+                  placeholder="e.g. Bill Gates"
+                  autoComplete="name"
+                  maxLength={60}
+                  autoFocus
+                />
+              </label>
+              <label>
+                <span>Main challenge</span>
+                <select value={profileFocusAreaDraft} onChange={(event) => setProfileFocusAreaDraft(event.target.value)}>
+                  <option value="">Choose one...</option>
+                  {productivityChallenges.map((challenge) => (
+                    <option key={challenge.value} value={challenge.value}>{challenge.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Productivity focus</span>
+                <textarea
+                  value={profileFocusGoalDraft}
+                  onChange={(event) => setProfileFocusGoalDraft(event.target.value)}
+                  placeholder="e.g. Once I open my phone, I struggle to put it down and return to my work."
+                  maxLength={300}
+                />
+              </label>
+            </div>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={!profileDraft.trim() || !profileFocusAreaDraft || !profileFocusGoalDraft.trim()}
+            >
+              Save my focus <span>→</span>
             </button>
             <small>Saved only in this browser.</small>
+          </form>
+        </div>
+      )}
+
+      {profileOpen && profileName && (
+        <div className="profile-popover-backdrop" role="presentation" onMouseDown={() => setProfileOpen(false)}>
+          <form
+            className="profile-popover"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-popover-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={saveProfile}
+          >
+            <button className="profile-popover-close" type="button" onClick={() => setProfileOpen(false)} aria-label="Close profile">×</button>
+            <div className="profile-popover-heading">
+              <div className="profile-mark" aria-hidden="true">{initials(profileDraft)}</div>
+              <div><span>Your profile</span><h2 id="profile-popover-title">Personalize Resequence.</h2></div>
+            </div>
+            <div className="profile-fields compact">
+              <label>
+                <span>Your name</span>
+                <input value={profileDraft} onChange={(event) => setProfileDraft(event.target.value)} maxLength={60} />
+              </label>
+              <label>
+                <span>Main challenge</span>
+                <select value={profileFocusAreaDraft} onChange={(event) => setProfileFocusAreaDraft(event.target.value)}>
+                  {productivityChallenges.map((challenge) => (
+                    <option key={challenge.value} value={challenge.value}>{challenge.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Productivity focus</span>
+                <textarea value={profileFocusGoalDraft} onChange={(event) => setProfileFocusGoalDraft(event.target.value)} maxLength={300} />
+              </label>
+            </div>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={!profileDraft.trim() || !profileFocusAreaDraft || !profileFocusGoalDraft.trim()}
+            >Save changes <span>→</span></button>
           </form>
         </div>
       )}
