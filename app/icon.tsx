@@ -16,44 +16,41 @@ export default function Icon() {
         width: "64px",
         height: "64px",
         overflow: "hidden",
-        borderRadius: "16px",
-        background: "#10233f",
+        borderRadius: "14px",
+        background: "#f5f1e8",
       }}
     >
       <div
         style={{
           position: "absolute",
-          left: "15px",
-          top: "11px",
-          width: "7px",
-          height: "42px",
-          borderRadius: "7px",
-          background: "#fffdf8",
+          left: "12px",
+          top: "15px",
+          width: "34px",
+          height: "7px",
+          borderRadius: "9px",
+          background: "#10233f",
         }}
       />
       <div
         style={{
           position: "absolute",
           left: "20px",
-          top: "11px",
-          width: "29px",
-          height: "25px",
-          border: "7px solid #fffdf8",
-          borderLeft: "0",
-          borderRadius: "0 15px 15px 0",
+          top: "29px",
+          width: "36px",
+          height: "7px",
+          borderRadius: "9px",
+          background: "#9ec318",
         }}
       />
       <div
         style={{
           position: "absolute",
-          left: "33px",
-          top: "31px",
-          width: "7px",
-          height: "34px",
-          borderRadius: "7px",
-          background: "#c7ed34",
-          transform: "rotate(-40deg)",
-          transformOrigin: "top center",
+          left: "12px",
+          top: "43px",
+          width: "40px",
+          height: "7px",
+          borderRadius: "9px",
+          background: "#10233f",
         }}
       />
     </div>,
