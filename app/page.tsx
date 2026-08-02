@@ -352,6 +352,21 @@ export default function Home() {
     setTaskTitle("");
   }
 
+  function loadDemoDay() {
+    if (
+      (tasks.length > 0 || activities.length > 0) &&
+      !window.confirm("Replace this day's priorities and activities with the demo day?")
+    ) return;
+
+    setTasks(sampleTasks.map((task) => ({ ...task })));
+    setActivities(sampleActivities.map((activity) => ({ ...activity })));
+    setWakeTime("07:00");
+    setSleepTime("23:00");
+    setQuickTaskId(null);
+    setAccepted(false);
+    setMoveNotice("Demo priorities and activities were loaded for today.");
+  }
+
   function removeTask(id: number) {
     setTasks((current) => current.filter((item) => item.id !== id));
     setActivities((current) => current.map((activity) =>
@@ -598,6 +613,10 @@ export default function Home() {
               <h2>AI does not choose what counts.</h2>
               <p>These priorities become the reference points for your day. Later, you can connect activities to them and report what you actually finished.</p>
               <div className="formula-example"><span>Today&apos;s plan</span><strong>{tasks.length} {tasks.length === 1 ? "priority" : "priorities"}</strong></div>
+              <button className="demo-load-button" type="button" onClick={loadDemoDay}>
+                Load demo day <span>→</span>
+              </button>
+              <small className="demo-load-note">Adds sample priorities and a complete activity timeline.</small>
             </aside>
           </div>
 
