@@ -31,7 +31,12 @@ type Source = {
   url: string;
 };
 
-type DayData = { activities: Activity[]; tasks: Task[] };
+type DayData = {
+  activities: Activity[];
+  tasks: Task[];
+  wakeTime?: string;
+  sleepTime?: string;
+};
 type SavedMvp = {
   days?: Record<string, DayData>;
   activities?: Activity[];
@@ -113,9 +118,24 @@ function friendlyTime(value: string) {
   return display + ":" + String(parts[1]).padStart(2, "0") + " " + suffix + (dayOffset ? " +" + dayOffset : "");
 }
 
+function awakeDuration(start: string, end: string) {
+  const startMinutes = minutes(start);
+  let endMinutes = minutes(end);
+  if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+  return endMinutes - startMinutes;
+}
+
+function durationLabel(value: number) {
+  const hours = Math.floor(value / 60);
+  const remaining = value % 60;
+  return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("priorities");
   const [day, setDay] = useState("2026-08-01");
+  const [wakeTime, setWakeTime] = useState("07:00");
+  const [sleepTime, setSleepTime] = useState("23:00");
   const [activities, setActivities] = useState<Activity[]>(sampleActivities);
   const [tasks, setTasks] = useState<Task[]>(sampleTasks);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -153,6 +173,8 @@ export default function Home() {
       else if (Array.isArray(parsed?.activities)) setActivities(parsed.activities);
       if (Array.isArray(savedDay?.tasks)) setTasks(savedDay.tasks);
       else if (Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
+      if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
+      if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
       setDay(selectedDay);
       if (parsed?.theme === "light" || parsed?.theme === "dark") {
         setTheme(parsed.theme);
@@ -174,9 +196,9 @@ export default function Home() {
     }
     window.localStorage.setItem(
       "resequence-mvp",
-      JSON.stringify({ days: { ...days, [day]: { activities, tasks } }, day, theme }),
+      JSON.stringify({ days: { ...days, [day]: { activities, tasks, wakeTime, sleepTime } }, day, theme }),
     );
-  }, [activities, tasks, day, theme, hydrated]);
+  }, [activities, tasks, day, wakeTime, sleepTime, theme, hydrated]);
 
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => a.start.localeCompare(b.start)),
@@ -203,6 +225,11 @@ export default function Home() {
   const priorityMinutes = sortedActivities
     .filter((activity) => activity.taskId && tasks.some((task) => task.id === activity.taskId))
     .reduce((sum, activity) => sum + duration(activity.start, activity.end), 0);
+
+  const awakeMinutes = awakeDuration(wakeTime, sleepTime);
+  const displayedSleepTime = minutes(sleepTime) <= minutes(wakeTime)
+    ? timeFromMinutes(minutes(sleepTime) + 24 * 60)
+    : sleepTime;
 
   const dayScore = Math.max(
     0,
@@ -411,12 +438,14 @@ export default function Home() {
     } catch {
       // A new day can still begin if local history cannot be read.
     }
-    days[day] = { activities, tasks };
-    const next = days[nextDay] ?? { activities: [], tasks: [] };
+    days[day] = { activities, tasks, wakeTime, sleepTime };
+    const next = days[nextDay] ?? { activities: [], tasks: [], wakeTime: "07:00", sleepTime: "23:00" };
     window.localStorage.setItem("resequence-mvp", JSON.stringify({ days, day: nextDay, theme }));
     setDay(nextDay);
     setActivities(next.activities);
     setTasks(next.tasks);
+    setWakeTime(next.wakeTime ?? "07:00");
+    setSleepTime(next.sleepTime ?? "23:00");
     setQuickTaskId(null);
     setAccepted(false);
   }
@@ -481,10 +510,20 @@ export default function Home() {
               <h1>Set today&apos;s<br />priorities.</h1>
               <p>Choose the tasks that would make this day meaningful. You decide their importance and difficulty—Resequence does not.</p>
             </div>
-            <label className="date-field">
-              <span>Day</span>
-              <input type="date" value={day} onChange={(event) => changeDay(event.target.value)} />
-            </label>
+            <div className="day-settings" aria-label="Day boundaries">
+              <label className="date-field">
+                <span>Day</span>
+                <input type="date" value={day} onChange={(event) => changeDay(event.target.value)} />
+              </label>
+              <label className="day-time-field">
+                <span>Wake up</span>
+                <input type="time" value={wakeTime} onChange={(event) => event.target.value && setWakeTime(event.target.value)} />
+              </label>
+              <label className="day-time-field">
+                <span>Go to sleep</span>
+                <input type="time" value={sleepTime} onChange={(event) => event.target.value && setSleepTime(event.target.value)} />
+              </label>
+            </div>
           </div>
 
           <div className="tasks-layout">
@@ -555,11 +594,16 @@ export default function Home() {
               </div>
 
               <div className="timeline-list">
+                <div className="timeline-boundary wake-boundary">
+                  <time>{friendlyTime(wakeTime)}</time>
+                  <span className="boundary-dot" aria-hidden="true">↑</span>
+                  <div><span>Day begins</span><strong>Wake up</strong></div>
+                </div>
                 {sortedActivities.length === 0 && (
                   <div className="empty-state">
-                    <span>07:00</span>
+                    <span>{friendlyTime(wakeTime)}</span>
                     <h3>Your day starts here.</h3>
-                    <p>Add an activity with the form beside the timeline.</p>
+                    <p>Add your first activity with Quick Capture.</p>
                   </div>
                 )}
                 {sortedActivities.map((activity) => (
@@ -644,6 +688,11 @@ export default function Home() {
                     </div>
                   </article>
                 ))}
+                <div className="timeline-boundary sleep-boundary">
+                  <time>{friendlyTime(displayedSleepTime)}</time>
+                  <span className="boundary-dot" aria-hidden="true">↓</span>
+                  <div><span>Day ends</span><strong>Go to sleep</strong></div>
+                </div>
               </div>
             </div>
           </div>
@@ -784,6 +833,7 @@ export default function Home() {
             <div className="hero-metrics">
               <div><strong>{priorityMinutes}</strong><span>priority minutes</span></div>
               <div><strong>{contextSwitches}</strong><span>context shifts</span></div>
+              <div><strong>{durationLabel(awakeMinutes)}</strong><span>awake window</span></div>
               <div><strong>{weightedTaskScore}%</strong><span>weighted progress</span></div>
             </div>
           </div>

@@ -98,9 +98,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; margin: 22px 0 42px; }
 .page-heading h1 { font-size: clamp(48px, 6vw, 84px); line-height: .92; letter-spacing: -.075em; margin: 0; font-weight: 820; }
 .page-heading p { max-width: 580px; font-size: 16px; line-height: 1.65; color: var(--ink-soft); margin: 25px 0 0; }
-.date-field { min-width: 188px; border-bottom: 1px solid var(--ink); padding: 0 0 10px; }
-.date-field > span { display: block; font-family: var(--font-geist-mono); font-size: 9px; letter-spacing: .11em; text-transform: uppercase; color: #777e7d; margin-bottom: 7px; }
-.date-field input { border: 0; padding: 0; background: transparent; color: var(--ink); font-weight: 650; width: 100%; }
+.day-settings { min-width: 510px; display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 22px; padding: 18px 20px; border: 1px solid var(--line); background: rgba(255,255,255,.16); }
+.date-field, .day-time-field { min-width: 0; border-bottom: 1px solid var(--ink); padding: 0 0 10px; }
+.date-field > span, .day-time-field > span { display: block; font-family: var(--font-geist-mono); font-size: 9px; letter-spacing: .11em; text-transform: uppercase; color: #777e7d; margin-bottom: 7px; }
+.date-field input, .day-time-field input { border: 0; padding: 0; background: transparent; color: var(--ink); font-weight: 650; width: 100%; }
 
 .timeline-panel { border-top: 1px solid var(--ink); }
 .section-header { padding: 22px 0 28px; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -109,6 +110,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .text-button, .back-button { border: 0; background: transparent; text-decoration: underline; text-underline-offset: 4px; font-size: 12px; cursor: pointer; padding: 6px; }
 .timeline-list { position: relative; }
 .timeline-list::before { content: ""; position: absolute; top: 0; bottom: 0; left: 119px; border-left: 1px dashed #b9b4ab; }
+.timeline-boundary { display: grid; grid-template-columns: 95px 48px 1fr; align-items: center; min-height: 58px; }
+.timeline-boundary time { font-family: var(--font-geist-mono); font-size: 10px; color: var(--ink-soft); text-align: right; }
+.boundary-dot { width: 24px; height: 24px; justify-self: center; z-index: 1; border: 1px solid var(--ink); border-radius: 50%; background: var(--paper); display: grid; place-items: center; font-size: 11px; font-weight: 800; }
+.timeline-boundary > div { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 12px 4px; }
+.timeline-boundary > div span { font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .11em; color: var(--ink-soft); }
+.timeline-boundary > div strong { font-size: 12px; }
+.wake-boundary { margin-bottom: 8px; }
+.sleep-boundary { margin-top: 8px; }
 .timeline-item { display: grid; grid-template-columns: 95px 48px 1fr; align-items: start; }
 .timeline-item time { font-family: var(--font-geist-mono); font-size: 10px; padding-top: 20px; color: var(--ink-soft); text-align: right; }
 .timeline-item time small { display: block; margin-top: 7px; color: #9a9e9b; font-size: 8px; }
@@ -230,7 +239,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .score-orbit strong { font-size: 76px; letter-spacing: -.08em; line-height: .95; }
 .score-orbit small { font-size: 9px; color: rgba(255,255,255,.5); }
 .score-orbit i { position: absolute; top: -5px; left: 100px; width: 9px; height: 9px; border-radius: 50%; background: var(--lime); transform-origin: 4px 109px; }
-.hero-metrics { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgba(255,255,255,.15); margin-top: 20px; padding-top: 28px; }
+.hero-metrics { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid rgba(255,255,255,.15); margin-top: 20px; padding-top: 28px; }
 .hero-metrics div { display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,.15); padding-left: 22px; }
 .hero-metrics div:first-child { padding-left: 0; }
 .hero-metrics div:last-child { border: 0; }
@@ -288,7 +297,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .source-topline { display: flex; justify-content: space-between; align-items: center; }
 .source-topline > span { font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); }
 .source-topline button { border: 1px solid var(--line); background: transparent; width: 42px; height: 24px; border-radius: 20px; font-size: 9px; cursor: pointer; }
-.enabled .source-topline button { background: var(--lime); border-color: var(--lime-deep); }
+.enabled .source-topline button { background: var(--lime); border-color: var(--lime-deep); color: #10233f; font-weight: 800; }
 .source-list h3 { font-size: 17px; margin: 10px 0 7px; }
 .source-list p { font-size: 11px; line-height: 1.55; color: var(--ink-soft); }
 .source-list a { color: var(--ink); font-size: 10px; }
@@ -328,6 +337,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-shell[data-theme="dark"] .topbar { background: rgba(11,20,33,.92); }
 .app-shell[data-theme="dark"] .sticky-action { background: rgba(11,20,33,.94); }
 .app-shell[data-theme="dark"] .task-row { background: rgba(255,255,255,.025); }
+.app-shell[data-theme="dark"] .day-settings { background: rgba(255,255,255,.025); }
 .app-shell[data-theme="dark"] .activity-card { border-color: rgba(255,255,255,.12); }
 .app-shell[data-theme="dark"] .activity-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,.25); }
 .app-shell[data-theme="dark"] .drag-handle,
@@ -366,6 +376,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 @media (max-width: 1000px) {
+  .priorities-page .page-heading.compact { display: block; }
+  .day-settings { width: 100%; min-width: 0; margin-top: 28px; }
   .page-grid { grid-template-columns: 1fr; gap: 20px; }
   .side-column { padding-top: 0; }
   .tasks-layout { grid-template-columns: 1fr; }
@@ -396,11 +408,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .page-grid, .tasks-page { padding: 34px 18px 120px; }
   .page-heading, .page-heading.compact { display: block; }
   .page-heading h1 { font-size: 53px; }
-  .date-field, .score-preview { display: block; margin-top: 28px; width: 100%; border-left: 0; padding-left: 0; }
+  .score-preview { display: block; margin-top: 28px; width: 100%; border-left: 0; padding-left: 0; }
+  .day-settings { grid-template-columns: 1fr; gap: 18px; }
   .side-column { display: block; }
   .quick-options { grid-template-columns: 1fr; }
   .timeline-list::before { left: 79px; }
   .timeline-item { grid-template-columns: 60px 38px 1fr; }
+  .timeline-boundary { grid-template-columns: 60px 38px 1fr; }
+  .timeline-boundary time { font-size: 8px; }
   .timeline-item time { font-size: 8px; }
   .activity-card { padding: 13px; }
   .activity-card h3 { font-size: 13px; }
