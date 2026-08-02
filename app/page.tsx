@@ -133,6 +133,9 @@ export default function Home() {
   const [dropTargetId, setDropTargetId] = useState<number | null>(null);
   const [moveModeId, setMoveModeId] = useState<number | null>(null);
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
+  const [editingActivityId, setEditingActivityId] = useState<number | null>(null);
+  const [editActivityTitle, setEditActivityTitle] = useState("");
+  const [editActivityDuration, setEditActivityDuration] = useState(30);
 
   useEffect(() => {
     let parsed: { activities?: Activity[]; tasks?: Task[]; day?: string; theme?: Theme } | null = null;
@@ -286,6 +289,50 @@ export default function Home() {
     setDropTargetId(null);
   }
 
+  function openActivityEditor(activity: Activity) {
+    setEditingActivityId(activity.id);
+    setEditActivityTitle(activity.title);
+    setEditActivityDuration(duration(activity.start, activity.end));
+    setMoveModeId(null);
+  }
+
+  function saveActivityEdits(event: React.FormEvent) {
+    event.preventDefault();
+    const activity = activities.find((item) => item.id === editingActivityId);
+    const newDuration = Math.round(Number(editActivityDuration));
+    if (!activity || !editActivityTitle.trim() || newDuration < 5 || newDuration > 720) return;
+
+    const oldDuration = duration(activity.start, activity.end);
+    const oldEnd = minutes(activity.end);
+    const difference = newDuration - oldDuration;
+
+    setActivities((current) => current.map((item) => {
+      if (item.id === activity.id) {
+        return {
+          ...item,
+          title: editActivityTitle.trim(),
+          end: timeFromMinutes(minutes(item.start) + newDuration),
+        };
+      }
+
+      if (difference !== 0 && minutes(item.start) >= oldEnd) {
+        return {
+          ...item,
+          start: timeFromMinutes(minutes(item.start) + difference),
+          end: timeFromMinutes(minutes(item.end) + difference),
+        };
+      }
+
+      return item;
+    }));
+
+    const timingNote = difference === 0
+      ? "Its timing stayed the same."
+      : "Later activities shifted " + Math.abs(difference) + " minutes " + (difference > 0 ? "forward." : "earlier.");
+    setMoveNotice(editActivityTitle.trim() + " is now " + newDuration + " minutes. " + timingNote);
+    setEditingActivityId(null);
+  }
+
   function resetDemo() {
     setActivities(sampleActivities);
     setTasks(sampleTasks);
@@ -416,6 +463,15 @@ export default function Home() {
                         <p>{friendlyTime(activity.start)}–{friendlyTime(activity.end)}</p>
                       </div>
                       <div className="activity-actions">
+                        <button
+                          className="edit-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openActivityEditor(activity);
+                          }}
+                          aria-label={"Edit " + activity.title}
+                          title="Edit name and duration"
+                        ><span aria-hidden="true">✎</span><b>Edit</b></button>
                         <button
                           className="drag-handle"
                           onClick={(event) => {
@@ -671,6 +727,66 @@ export default function Home() {
             </div>
             <button className="primary-button full" onClick={() => setSourcesOpen(false)}>Save evidence settings</button>
           </aside>
+        </div>
+      )}
+
+      {editingActivityId !== null && (
+        <div className="edit-modal-backdrop" role="presentation" onMouseDown={() => setEditingActivityId(null)}>
+          <form
+            className="edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={saveActivityEdits}
+          >
+            <button className="drawer-close" type="button" onClick={() => setEditingActivityId(null)} aria-label="Close activity editor">×</button>
+            <div className="edit-icon" aria-hidden="true">✎</div>
+            <div className="eyebrow">Edit activity</div>
+            <h2 id="edit-modal-title">Change the details.</h2>
+            <label className="edit-name-field">
+              <span>Activity name</span>
+              <input
+                value={editActivityTitle}
+                onChange={(event) => setEditActivityTitle(event.target.value)}
+                maxLength={80}
+                autoFocus
+              />
+            </label>
+            <label className="duration-field">
+              <span>Duration in minutes</span>
+              <div>
+                <input
+                  type="number"
+                  min="5"
+                  max="720"
+                  step="5"
+                  value={editActivityDuration}
+                  onChange={(event) => setEditActivityDuration(Number(event.target.value))}
+                />
+                <b>minutes</b>
+              </div>
+            </label>
+            <div className="duration-presets" aria-label="Common activity durations">
+              {[15, 30, 45, 60, 90].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={editActivityDuration === value ? "active" : ""}
+                  onClick={() => setEditActivityDuration(value)}
+                >{value}m</button>
+              ))}
+            </div>
+            <p className="edit-note">Changing the duration shifts every later activity by the difference, keeping the rest of your day in sequence.</p>
+            <div className="modal-actions">
+              <button className="back-button" type="button" onClick={() => setEditingActivityId(null)}>Cancel</button>
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={!editActivityTitle.trim() || editActivityDuration < 5 || editActivityDuration > 720}
+              >Save changes <span>→</span></button>
+            </div>
+          </form>
         </div>
       )}
 
