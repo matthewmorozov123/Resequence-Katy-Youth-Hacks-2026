@@ -185,7 +185,7 @@ export async function POST(request: Request) {
   }
   if (!activity) {
     return NextResponse.json(
-      { error: "Include a time, like “at 3:15 PM” or “from 8:30 to 9:15.”" },
+      { error: "Include a start time and duration, like “at 3:15 PM for 45 minutes,” or a full range like “from 8:30 to 9:15.”" },
       { status: 422 },
     );
   }

@@ -571,7 +571,7 @@ export default function Home() {
               {quickCaptureError ? (
                 <p className="quick-capture-error" role="alert">{quickCaptureError}</p>
               ) : (
-                <p className="helper-text">Include a time. AI keeps only the activity name and places it correctly.</p>
+                <p className="helper-text">Include a start time and duration, or a full time range. AI keeps only the activity name and places it correctly.</p>
               )}
             </div>
 
