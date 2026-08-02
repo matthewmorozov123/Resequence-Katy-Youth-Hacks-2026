@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Step = "timeline" | "tasks" | "insights";
+type Step = "priorities" | "timeline" | "outcomes" | "insights";
 type ActivityKind = "focus" | "digital" | "movement" | "routine" | "rest";
 type Theme = "light" | "dark";
 
@@ -12,6 +12,7 @@ type Activity = {
   start: string;
   end: string;
   kind: ActivityKind;
+  taskId?: number | null;
 };
 
 type Task = {
@@ -30,15 +31,24 @@ type Source = {
   url: string;
 };
 
+type DayData = { activities: Activity[]; tasks: Task[] };
+type SavedMvp = {
+  days?: Record<string, DayData>;
+  activities?: Activity[];
+  tasks?: Task[];
+  day?: string;
+  theme?: Theme;
+};
+
 const sampleActivities: Activity[] = [
   { id: 1, title: "Morning scroll", start: "07:00", end: "07:40", kind: "digital" },
   { id: 2, title: "Breakfast + shower", start: "07:40", end: "08:25", kind: "routine" },
-  { id: 3, title: "Chemistry review", start: "08:25", end: "09:00", kind: "focus" },
+  { id: 3, title: "Chemistry review", start: "08:25", end: "09:00", kind: "focus", taskId: 1 },
   { id: 4, title: "Messages + email", start: "09:00", end: "09:20", kind: "digital" },
-  { id: 5, title: "Chemistry project", start: "09:20", end: "10:30", kind: "focus" },
+  { id: 5, title: "Chemistry project", start: "09:20", end: "10:30", kind: "focus", taskId: 1 },
   { id: 6, title: "Run outside", start: "10:30", end: "11:00", kind: "movement" },
   { id: 7, title: "Lunch", start: "11:15", end: "11:50", kind: "rest" },
-  { id: 8, title: "History essay", start: "12:00", end: "12:55", kind: "focus" },
+  { id: 8, title: "History essay", start: "12:00", end: "12:55", kind: "focus", taskId: 2 },
 ];
 
 const sampleTasks: Task[] = [
@@ -72,7 +82,7 @@ const evidenceSources: Source[] = [
 ];
 
 const kindLabels: Record<ActivityKind, string> = {
-  focus: "Focus",
+  focus: "Task work",
   digital: "Digital",
   movement: "Movement",
   routine: "Routine",
@@ -104,7 +114,7 @@ function friendlyTime(value: string) {
 }
 
 export default function Home() {
-  const [step, setStep] = useState<Step>("timeline");
+  const [step, setStep] = useState<Step>("priorities");
   const [day, setDay] = useState("2026-08-01");
   const [activities, setActivities] = useState<Activity[]>(sampleActivities);
   const [tasks, setTasks] = useState<Task[]>(sampleTasks);
@@ -113,10 +123,13 @@ export default function Home() {
   const [quickNote, setQuickNote] = useState("");
   const [quickCaptureLoading, setQuickCaptureLoading] = useState(false);
   const [quickCaptureError, setQuickCaptureError] = useState<string | null>(null);
+  const [quickKind, setQuickKind] = useState<ActivityKind>("routine");
+  const [quickTaskId, setQuickTaskId] = useState<number | null>(null);
   const [activityTitle, setActivityTitle] = useState("");
   const [activityStart, setActivityStart] = useState("13:30");
   const [activityEnd, setActivityEnd] = useState("14:00");
   const [activityKind, setActivityKind] = useState<ActivityKind>("focus");
+  const [activityTaskId, setActivityTaskId] = useState<number | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -128,9 +141,10 @@ export default function Home() {
   const [editingActivityId, setEditingActivityId] = useState<number | null>(null);
   const [editActivityTitle, setEditActivityTitle] = useState("");
   const [editActivityDuration, setEditActivityDuration] = useState(30);
+  const [editActivityTaskId, setEditActivityTaskId] = useState<number | null>(null);
 
   useEffect(() => {
-    let parsed: { activities?: Activity[]; tasks?: Task[]; day?: string; theme?: Theme } | null = null;
+    let parsed: SavedMvp | null = null;
     try {
       const saved = window.localStorage.getItem("resequence-mvp");
       if (saved) parsed = JSON.parse(saved);
@@ -138,9 +152,13 @@ export default function Home() {
       // Keep the polished demo state if local data is unavailable.
     }
     queueMicrotask(() => {
-      if (Array.isArray(parsed?.activities)) setActivities(parsed.activities);
-      if (Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
-      if (typeof parsed?.day === "string") setDay(parsed.day);
+      const selectedDay = typeof parsed?.day === "string" ? parsed.day : "2026-08-01";
+      const savedDay = parsed?.days?.[selectedDay];
+      if (Array.isArray(savedDay?.activities)) setActivities(savedDay.activities);
+      else if (Array.isArray(parsed?.activities)) setActivities(parsed.activities);
+      if (Array.isArray(savedDay?.tasks)) setTasks(savedDay.tasks);
+      else if (Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
+      setDay(selectedDay);
       if (parsed?.theme === "light" || parsed?.theme === "dark") {
         setTheme(parsed.theme);
       } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -152,7 +170,17 @@ export default function Home() {
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem("resequence-mvp", JSON.stringify({ activities, tasks, day, theme }));
+    let days: Record<string, DayData> = {};
+    try {
+      const saved = window.localStorage.getItem("resequence-mvp");
+      if (saved) days = (JSON.parse(saved) as SavedMvp).days ?? {};
+    } catch {
+      // Start a fresh per-day index if older local data is malformed.
+    }
+    window.localStorage.setItem(
+      "resequence-mvp",
+      JSON.stringify({ days: { ...days, [day]: { activities, tasks } }, day, theme }),
+    );
   }, [activities, tasks, day, theme, hydrated]);
 
   const sortedActivities = useMemo(
@@ -177,8 +205,8 @@ export default function Home() {
     }, 0);
   }, [sortedActivities]);
 
-  const focusMinutes = sortedActivities
-    .filter((activity) => activity.kind === "focus")
+  const priorityMinutes = sortedActivities
+    .filter((activity) => activity.taskId && tasks.some((task) => task.id === activity.taskId))
     .reduce((sum, activity) => sum + duration(activity.start, activity.end), 0);
 
   const dayScore = Math.max(
@@ -213,6 +241,7 @@ export default function Home() {
         start: activityStart,
         end: activityEnd,
         kind: activityKind,
+        taskId: activityTaskId,
       },
     ]);
     setActivityTitle("");
@@ -231,7 +260,7 @@ export default function Home() {
         body: JSON.stringify({ note }),
       });
       const result = (await response.json()) as {
-        activity?: Omit<Activity, "id">;
+        activity?: Pick<Activity, "title" | "start" | "end">;
         usedAI?: boolean;
         error?: string;
       };
@@ -239,7 +268,11 @@ export default function Home() {
         throw new Error(result.error || "Quick capture could not read that note.");
       }
 
-      const captured = result.activity;
+      const captured: Omit<Activity, "id"> = {
+        ...result.activity,
+        kind: quickKind,
+        taskId: quickTaskId,
+      };
       const capturedStart = minutes(captured.start);
       const capturedEnd = minutes(captured.end);
       const conflict = sortedActivities.find(
@@ -287,6 +320,16 @@ export default function Home() {
       { id: Date.now(), title: taskTitle.trim(), importance: 3, difficulty: 3, completion: 0 },
     ]);
     setTaskTitle("");
+  }
+
+  function removeTask(id: number) {
+    setTasks((current) => current.filter((item) => item.id !== id));
+    setActivities((current) => current.map((activity) =>
+      activity.taskId === id ? { ...activity, taskId: null } : activity,
+    ));
+    if (quickTaskId === id) setQuickTaskId(null);
+    if (activityTaskId === id) setActivityTaskId(null);
+    if (editActivityTaskId === id) setEditActivityTaskId(null);
   }
 
   function updateTask(id: number, field: keyof Omit<Task, "id" | "title">, value: number) {
@@ -340,6 +383,7 @@ export default function Home() {
     setEditingActivityId(activity.id);
     setEditActivityTitle(activity.title);
     setEditActivityDuration(duration(activity.start, activity.end));
+    setEditActivityTaskId(activity.taskId ?? null);
     setMoveModeId(null);
   }
 
@@ -359,6 +403,7 @@ export default function Home() {
           ...item,
           title: editActivityTitle.trim(),
           end: timeFromMinutes(minutes(item.start) + newDuration),
+          taskId: editActivityTaskId,
         };
       }
 
@@ -380,24 +425,44 @@ export default function Home() {
     setEditingActivityId(null);
   }
 
-  function resetDemo() {
-    setActivities(sampleActivities);
-    setTasks(sampleTasks);
-    setDay("2026-08-01");
-    setStep("timeline");
+  function changeDay(nextDay: string) {
+    if (!nextDay || nextDay === day) return;
+    let days: Record<string, DayData> = {};
+    try {
+      const saved = window.localStorage.getItem("resequence-mvp");
+      if (saved) days = (JSON.parse(saved) as SavedMvp).days ?? {};
+    } catch {
+      // A new day can still begin if local history cannot be read.
+    }
+    days[day] = { activities, tasks };
+    const next = days[nextDay] ?? { activities: [], tasks: [] };
+    window.localStorage.setItem("resequence-mvp", JSON.stringify({ days, day: nextDay, theme }));
+    setDay(nextDay);
+    setActivities(next.activities);
+    setTasks(next.tasks);
+    setQuickTaskId(null);
+    setActivityTaskId(null);
     setAccepted(false);
   }
 
+  function startNextDay() {
+    const next = new Date(day + "T12:00:00");
+    next.setDate(next.getDate() + 1);
+    changeDay(next.toISOString().slice(0, 10));
+    setStep("priorities");
+  }
+
   const steps: { id: Step; number: string; label: string }[] = [
-    { id: "timeline", number: "01", label: "Map your day" },
-    { id: "tasks", number: "02", label: "Weigh your tasks" },
-    { id: "insights", number: "03", label: "Resequence" },
+    { id: "priorities", number: "01", label: "Priorities" },
+    { id: "timeline", number: "02", label: "Map your day" },
+    { id: "outcomes", number: "03", label: "Outcomes" },
+    { id: "insights", number: "04", label: "Resequence" },
   ];
 
   return (
     <main className="app-shell" data-theme={theme}>
       <header className="topbar">
-        <button className="brand" onClick={() => setStep("timeline")} aria-label="Resequence home">
+        <button className="brand" onClick={() => setStep("priorities")} aria-label="Resequence home">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span>RESEQUENCE</span>
         </button>
@@ -432,26 +497,83 @@ export default function Home() {
         })}
       </nav>
 
+      {step === "priorities" && (
+        <section className="tasks-page priorities-page">
+          <div className="eyebrow">Step 1 of 4 · Choose what matters</div>
+          <div className="page-heading compact">
+            <div>
+              <h1>Set today&apos;s<br />priorities.</h1>
+              <p>Choose the tasks that would make this day meaningful. You decide their importance and difficulty—Resequence does not.</p>
+            </div>
+            <label className="date-field">
+              <span>Day</span>
+              <input type="date" value={day} onChange={(event) => changeDay(event.target.value)} />
+            </label>
+          </div>
+
+          <div className="tasks-layout">
+            <div className="task-list priority-task-list">
+              <div className="task-labels"><span>Daily priority</span><span>Importance</span><span>Difficulty</span></div>
+              {tasks.map((task, index) => (
+                <article className="task-row" key={task.id}>
+                  <div className="task-title-cell">
+                    <span className="task-check">{String(index + 1).padStart(2, "0")}</span>
+                    <div><h3>{task.title}</h3><p>{task.importance * task.difficulty} potential points</p></div>
+                  </div>
+                  <label className="range-field">
+                    <span className="mobile-label">Importance</span>
+                    <input type="range" min="1" max="5" value={task.importance} onChange={(event) => updateTask(task.id, "importance", Number(event.target.value))} />
+                    <b>{task.importance}/5</b>
+                  </label>
+                  <label className="range-field">
+                    <span className="mobile-label">Difficulty</span>
+                    <input type="range" min="1" max="5" value={task.difficulty} onChange={(event) => updateTask(task.id, "difficulty", Number(event.target.value))} />
+                    <b>{task.difficulty}/5</b>
+                  </label>
+                  <button className="remove-button" onClick={() => removeTask(task.id)} aria-label={"Remove " + task.title}>×</button>
+                </article>
+              ))}
+
+              <form className="new-task" onSubmit={addTask}>
+                <span>+</span>
+                <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Add a priority for this day..." aria-label="New task title" />
+                <button type="submit">Add priority</button>
+              </form>
+            </div>
+
+            <aside className="formula-card priority-card">
+              <span className="section-kicker">You define success</span>
+              <h2>AI does not choose what counts.</h2>
+              <p>These priorities become the reference points for your day. Later, you can connect activities to them and report what you actually finished.</p>
+              <div className="formula-example"><span>Today&apos;s plan</span><strong>{tasks.length} {tasks.length === 1 ? "priority" : "priorities"}</strong></div>
+            </aside>
+          </div>
+
+          <div className="sticky-action">
+            <div><strong>Priorities ready?</strong><span>You can edit them again later.</span></div>
+            <button className="primary-button" onClick={() => setStep("timeline")} disabled={!tasks.length}>
+              Next: map your day <span>→</span>
+            </button>
+          </div>
+        </section>
+      )}
+
       {step === "timeline" && (
         <section className="page-grid">
           <div className="main-column">
-            <div className="eyebrow">Step 1 of 3 · Reconstruct</div>
+            <div className="eyebrow">Step 2 of 4 · Reconstruct</div>
             <div className="page-heading">
               <div>
                 <h1>What shaped<br />your day?</h1>
                 <p>Build an honest timeline. Breaks and distractions belong here too—context makes the advice useful.</p>
               </div>
-              <label className="date-field">
-                <span>Day</span>
-                <input type="date" value={day} onChange={(event) => setDay(event.target.value)} />
-              </label>
             </div>
 
             <div className="timeline-panel">
               <div className="section-header">
                 <div>
                   <span className="section-kicker">Your timeline</span>
-                  <h2>{sortedActivities.length} activities · {focusMinutes} focus minutes</h2>
+                  <h2>{sortedActivities.length} activities · {sortedActivities.filter((activity) => activity.taskId).length} linked to priorities</h2>
                 </div>
                 <button className="text-button" onClick={() => setActivities([])}>Clear day</button>
               </div>
@@ -508,6 +630,9 @@ export default function Home() {
                         <span className="activity-kind">{kindLabels[activity.kind]}</span>
                         <h3>{activity.title}</h3>
                         <p>{friendlyTime(activity.start)}–{friendlyTime(activity.end)}</p>
+                        {activity.taskId && tasks.some((task) => task.id === activity.taskId) && (
+                          <span className="activity-priority">↳ {tasks.find((task) => task.id === activity.taskId)?.title}</span>
+                        )}
                       </div>
                       <div className="activity-actions">
                         <button
@@ -561,6 +686,21 @@ export default function Home() {
                 aria-label="Describe an activity"
                 maxLength={500}
               />
+              <div className="quick-options">
+                <label>
+                  <span>Activity type</span>
+                  <select value={quickKind} onChange={(event) => setQuickKind(event.target.value as ActivityKind)}>
+                    {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>Supports</span>
+                  <select value={quickTaskId ?? ""} onChange={(event) => setQuickTaskId(event.target.value ? Number(event.target.value) : null)}>
+                    <option value="">No priority</option>
+                    {tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+                  </select>
+                </label>
+              </div>
               <button
                 className="secondary-button"
                 onClick={mapQuickNote}
@@ -571,7 +711,7 @@ export default function Home() {
               {quickCaptureError ? (
                 <p className="quick-capture-error" role="alert">{quickCaptureError}</p>
               ) : (
-                <p className="helper-text">Include a start time and duration, or a full time range. AI keeps only the activity name and places it correctly.</p>
+                <p className="helper-text">You choose the type and related priority. AI only cleans the name, time, and duration.</p>
               )}
             </div>
 
@@ -590,9 +730,16 @@ export default function Home() {
                 <label><span>Ended</span><input type="time" value={activityEnd} onChange={(event) => setActivityEnd(event.target.value)} /></label>
               </div>
               <label>
-                <span>Category</span>
+                <span>Activity type</span>
                 <select value={activityKind} onChange={(event) => setActivityKind(event.target.value as ActivityKind)}>
                   {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Related priority</span>
+                <select value={activityTaskId ?? ""} onChange={(event) => setActivityTaskId(event.target.value ? Number(event.target.value) : null)}>
+                  <option value="">Not connected</option>
+                  {tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
                 </select>
               </label>
               <button className="primary-button" type="submit">Add to my day <span>+</span></button>
@@ -605,21 +752,23 @@ export default function Home() {
           </aside>
 
           <div className="sticky-action">
-            <div><strong>Timeline ready?</strong><span>You can come back and edit it.</span></div>
-            <button className="primary-button" onClick={() => setStep("tasks")}>
-              Next: weigh your tasks <span>→</span>
+            <button className="back-button" onClick={() => setStep("priorities")}>← Back to priorities</button>
+            <div className="action-spacer" />
+            <div><strong>Timeline ready?</strong><span>Next, report what you finished.</span></div>
+            <button className="primary-button" onClick={() => setStep("outcomes")} disabled={!tasks.length}>
+              Next: review outcomes <span>→</span>
             </button>
           </div>
         </section>
       )}
 
-      {step === "tasks" && (
-        <section className="tasks-page">
-          <div className="eyebrow">Step 2 of 3 · Define success</div>
+      {step === "outcomes" && (
+        <section className="tasks-page outcomes-page">
+          <div className="eyebrow">Step 3 of 4 · Report the outcome</div>
           <div className="page-heading compact">
             <div>
-              <h1>Not every task<br />counts the same.</h1>
-              <p>Tell Resequence what mattered and how demanding it felt. The score stays transparent and under your control.</p>
+              <h1>What moved<br />forward?</h1>
+              <p>Mark how much you completed. This is your report—not an AI judgment based on how your activities were labeled.</p>
             </div>
             <div className="score-preview">
               <span>Weighted completion</span>
@@ -629,47 +778,34 @@ export default function Home() {
           </div>
 
           <div className="tasks-layout">
-            <div className="task-list">
-              <div className="task-labels"><span>Task</span><span>Importance</span><span>Difficulty</span><span>Done</span></div>
+            <div className="task-list outcome-task-list">
+              <div className="task-labels"><span>Daily priority</span><span>Outcome</span></div>
               {tasks.map((task) => (
                 <article className="task-row" key={task.id}>
                   <div className="task-title-cell">
                     <span className="task-check">{task.completion === 100 ? "✓" : task.completion + "%"}</span>
-                    <div><h3>{task.title}</h3><p>{task.importance * task.difficulty} weighted points</p></div>
+                    <div><h3>{task.title}</h3><p>Importance {task.importance}/5 · Difficulty {task.difficulty}/5</p></div>
                   </div>
-                  <label className="range-field">
-                    <span className="mobile-label">Importance</span>
-                    <input type="range" min="1" max="5" value={task.importance} onChange={(event) => updateTask(task.id, "importance", Number(event.target.value))} />
-                    <b>{task.importance}/5</b>
-                  </label>
-                  <label className="range-field">
-                    <span className="mobile-label">Difficulty</span>
-                    <input type="range" min="1" max="5" value={task.difficulty} onChange={(event) => updateTask(task.id, "difficulty", Number(event.target.value))} />
-                    <b>{task.difficulty}/5</b>
-                  </label>
-                  <label className="range-field completion-field">
+                  <label className="range-field completion-field outcome-control">
                     <span className="mobile-label">Completion</span>
-                    <input type="range" min="0" max="100" step="10" value={task.completion} onChange={(event) => updateTask(task.id, "completion", Number(event.target.value))} />
+                    <input type="range" min="0" max="100" step="5" value={task.completion} onChange={(event) => updateTask(task.id, "completion", Number(event.target.value))} />
                     <b>{task.completion}%</b>
                   </label>
-                  <button className="remove-button" onClick={() => setTasks((current) => current.filter((item) => item.id !== task.id))} aria-label={"Remove " + task.title}>×</button>
+                  <button
+                    className={task.completion === 100 ? "outcome-done active" : "outcome-done"}
+                    onClick={() => updateTask(task.id, "completion", task.completion === 100 ? 0 : 100)}
+                  >{task.completion === 100 ? "Completed" : "Mark done"}</button>
                 </article>
               ))}
-
-              <form className="new-task" onSubmit={addTask}>
-                <span>+</span>
-                <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Add another task..." aria-label="New task title" />
-                <button type="submit">Add task</button>
-              </form>
             </div>
 
             <aside className="formula-card">
-              <span className="section-kicker">How scoring works</span>
-              <h2>No mystery number.</h2>
+              <span className="section-kicker">Your honest check-in</span>
+              <h2>Progress is not all-or-nothing.</h2>
               <div className="formula">
                 <span>Importance</span><b>×</b><span>Difficulty</span><b>×</b><span>Completion</span>
               </div>
-              <p>We use your priorities to calculate progress. The AI explains patterns; it never silently changes the math.</p>
+              <p>Use the slider for partial progress or mark a priority complete. Resequence uses exactly the outcome you report.</p>
               <div className="formula-example"><span>Example</span><strong>5 × 4 × 70% = 14 points</strong></div>
             </aside>
           </div>
@@ -689,9 +825,9 @@ export default function Home() {
         <section className="insights-page">
           <div className="results-hero">
             <div>
-              <div className="eyebrow light">Step 3 of 3 · Your daily debrief</div>
+              <div className="eyebrow light">Step 4 of 4 · Your daily debrief</div>
               <h1>Good progress.<br /><em>One useful shift.</em></h1>
-              <p>You moved your important work forward. Your biggest opportunity is protecting the start of your hardest focus block.</p>
+              <p>You moved your priorities forward. Your biggest opportunity is protecting the start of your hardest priority block.</p>
             </div>
             <div className="score-orbit">
               <span>Day signal</span>
@@ -700,7 +836,7 @@ export default function Home() {
               <i style={{ transform: "rotate(" + String(dayScore * 3.6) + "deg)" }} />
             </div>
             <div className="hero-metrics">
-              <div><strong>{focusMinutes}</strong><span>focus minutes</span></div>
+              <div><strong>{priorityMinutes}</strong><span>priority minutes</span></div>
               <div><strong>{contextSwitches}</strong><span>context shifts</span></div>
               <div><strong>{weightedTaskScore}%</strong><span>weighted progress</span></div>
             </div>
@@ -711,7 +847,7 @@ export default function Home() {
               <div className="insight-number">01</div>
               <span className="insight-label">What worked</span>
               <h2>You returned to meaningful work.</h2>
-              <p>Despite a fragmented morning, you completed {weightedTaskScore}% of your weighted task value and logged {focusMinutes} minutes of focused activity.</p>
+              <p>Despite a fragmented morning, you completed {weightedTaskScore}% of your weighted task value and logged {priorityMinutes} minutes connected to daily priorities.</p>
               <div className="observation"><span>Observed in your day</span><b>Progress after interruption</b></div>
             </article>
             <article className="insight-card friction">
@@ -742,7 +878,7 @@ export default function Home() {
               <button className={accepted ? "accepted-button" : "primary-button"} onClick={() => setAccepted(true)}>
                 {accepted ? "✓ Plan accepted" : "Use this sequence tomorrow"}
               </button>
-              <button className="text-button restart" onClick={resetDemo}>Start a new day</button>
+              <button className="text-button restart" onClick={startNextDay}>Start a new day</button>
             </div>
             <div className="tomorrow-timeline">
               <div className="tomorrow-header"><span>Sunday · Aug 2</span><b>Suggested plan</b></div>
@@ -811,6 +947,13 @@ export default function Home() {
                 maxLength={80}
                 autoFocus
               />
+            </label>
+            <label className="edit-priority-field">
+              <span>Related priority</span>
+              <select value={editActivityTaskId ?? ""} onChange={(event) => setEditActivityTaskId(event.target.value ? Number(event.target.value) : null)}>
+                <option value="">Not connected</option>
+                {tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+              </select>
             </label>
             <label className="duration-field">
               <span>Duration in minutes</span>

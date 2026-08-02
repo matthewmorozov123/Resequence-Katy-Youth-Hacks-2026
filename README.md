@@ -30,9 +30,9 @@ The project is a standard Next.js app and can be imported directly into Vercel. 
 
 ## MVP flow
 
-1. Capture an activity in natural language with its time; AI cleans its name and timeline conflicts shift automatically.
-2. Score tasks by importance, difficulty, and completion.
-3. Review transparent metrics and evidence-aware observations.
-4. Accept a resequenced plan for tomorrow.
+1. Define that day's priorities, importance, and difficulty.
+2. Map activities, choose their type, and optionally connect them to a priority; AI only cleans Quick Capture text and timing.
+3. Report completion percentages or mark priorities finished.
+4. Review transparent, evidence-aware observations and a resequenced plan for tomorrow.
 
 The current productivity analysis is deterministic and uses a small curated evidence library. Quick Capture uses AI when configured, with a deterministic local fallback. A future version can add authenticated persistence without changing the scoring formula.

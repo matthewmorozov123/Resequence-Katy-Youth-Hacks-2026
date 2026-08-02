@@ -1,17 +1,13 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
-type ActivityKind = "focus" | "digital" | "movement" | "routine" | "rest";
-type CapturedActivity = { title: string; start: string; end: string; kind: ActivityKind };
+type CapturedActivity = { title: string; start: string; end: string };
 type ParsedCapture = {
   has_time: boolean;
   title: string;
   start: string;
   duration_minutes: number;
-  kind: ActivityKind;
 };
-
-const kinds = new Set<ActivityKind>(["focus", "digital", "movement", "routine", "rest"]);
 
 function clockMinutes(hourText: string, minuteText = "0", meridiem?: string) {
   let hour = Number(hourText);
@@ -27,15 +23,6 @@ function timeFromMinutes(value: number) {
   const hour = Math.floor(value / 60);
   const minute = value % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function inferKind(text: string): ActivityKind {
-  const lower = text.toLowerCase();
-  if (/run|walk|gym|workout|exercise|sport|practice|bike|swim/.test(lower)) return "movement";
-  if (/phone|scroll|tiktok|instagram|youtube|message|email|game|netflix|social media/.test(lower)) return "digital";
-  if (/study|project|essay|homework|read|research|code|work|class|review|practice test/.test(lower)) return "focus";
-  if (/lunch|break|rest|nap|dinner|snack|relax|sleep/.test(lower)) return "rest";
-  return "routine";
 }
 
 function cleanTitle(note: string) {
@@ -96,7 +83,6 @@ function parseLocally(note: string): ParsedCapture {
     title,
     start: start === null ? "" : timeFromMinutes(start),
     duration_minutes: Math.min(480, Math.max(5, length)),
-    kind: inferKind(title),
   };
 }
 
@@ -104,13 +90,12 @@ function normalizeCapture(parsed: ParsedCapture): CapturedActivity | null {
   if (!parsed.has_time || !/^\d{2}:\d{2}$/.test(parsed.start)) return null;
   const [hour, minute] = parsed.start.split(":").map(Number);
   const length = Math.round(Number(parsed.duration_minutes));
-  if (hour > 23 || minute > 59 || length < 5 || length > 480 || !kinds.has(parsed.kind)) return null;
+  if (hour > 23 || minute > 59 || length < 5 || length > 480) return null;
   const startMinutes = hour * 60 + minute;
   return {
     title: parsed.title.trim().slice(0, 80) || "Activity",
     start: parsed.start,
     end: timeFromMinutes(startMinutes + length),
-    kind: parsed.kind,
   };
 }
 
@@ -129,7 +114,7 @@ async function parseWithAI(note: string) {
           "Extract exactly one completed activity from a quick note. Only use a time explicitly written by the user. " +
           "Return a short, clean activity name containing only what they did—remove time, duration, filler, and commentary. " +
           "Use 24-hour HH:MM time. Infer a reasonable duration only when the user did not state one. " +
-          "Choose the closest category: focus, digital, movement, routine, or rest.",
+          "Do not judge its productivity or assign it to a category or task.",
       },
       { role: "user", content: note },
     ],
@@ -145,9 +130,8 @@ async function parseWithAI(note: string) {
             title: { type: "string" },
             start: { type: "string" },
             duration_minutes: { type: "integer", minimum: 5, maximum: 480 },
-            kind: { type: "string", enum: ["focus", "digital", "movement", "routine", "rest"] },
           },
-          required: ["has_time", "title", "start", "duration_minutes", "kind"],
+          required: ["has_time", "title", "start", "duration_minutes"],
           additionalProperties: false,
         },
       },
