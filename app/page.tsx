@@ -100,7 +100,7 @@ const sampleActivities: Activity[] = [
   { id: 1, title: "Morning scroll", start: "07:00", end: "07:40", kind: "digital" },
   { id: 2, title: "Breakfast + shower", start: "07:40", end: "08:25", kind: "routine" },
   { id: 3, title: "Chemistry review", start: "08:25", end: "09:00", kind: "focus", taskId: 1 },
-  { id: 4, title: "Messages + email", start: "09:00", end: "09:20", kind: "digital" },
+  { id: 4, title: "Messages + email", start: "09:00", end: "09:20", kind: "digital", taskId: 3 },
   { id: 5, title: "Chemistry project", start: "09:20", end: "10:30", kind: "focus", taskId: 1 },
   { id: 6, title: "Run outside", start: "10:30", end: "11:00", kind: "movement" },
   { id: 7, title: "Lunch", start: "11:15", end: "11:50", kind: "rest" },
@@ -411,6 +411,41 @@ function timeFromMinutes(value: number) {
   return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
 }
 
+function placeActivityWithCollisionCascade(current: Activity[], inserted: Activity) {
+  const insertedStart = minutes(inserted.start);
+  let occupiedUntil = minutes(inserted.end);
+  let gapReached = false;
+  let shiftedCount = 0;
+
+  const placed = current
+    .filter((activity) => activity.id !== inserted.id)
+    .sort((a, b) => minutes(a.start) - minutes(b.start))
+    .map((activity) => {
+      if (gapReached || minutes(activity.end) <= insertedStart) return activity;
+
+      const activityStart = minutes(activity.start);
+      if (activityStart >= occupiedUntil) {
+        gapReached = true;
+        return activity;
+      }
+
+      const activityDuration = duration(activity.start, activity.end);
+      const shifted = {
+        ...activity,
+        start: timeFromMinutes(occupiedUntil),
+        end: timeFromMinutes(occupiedUntil + activityDuration),
+      };
+      occupiedUntil += activityDuration;
+      shiftedCount += 1;
+      return shifted;
+    });
+
+  return {
+    activities: [...placed, inserted].sort((a, b) => minutes(a.start) - minutes(b.start)),
+    shiftedCount,
+  };
+}
+
 function friendlyTime(value: string) {
   const parts = value.split(":").map(Number);
   const dayOffset = Math.floor(parts[0] / 24);
@@ -699,36 +734,14 @@ export default function Home() {
         kind: quickKind,
         taskId: quickTaskId,
       };
-      const capturedStart = minutes(captured.start);
-      const capturedEnd = minutes(captured.end);
-      const conflict = sortedActivities.find(
-        (activity) => capturedStart < minutes(activity.end) && capturedEnd > minutes(activity.start),
-      );
-
-      let shiftAmount = 0;
-      if (conflict) {
-        const threshold = minutes(conflict.start);
-        shiftAmount = capturedEnd - threshold;
-        setActivities((current) => [
-          ...current.map((activity) => {
-            if (minutes(activity.start) < threshold) return activity;
-            return {
-              ...activity,
-              start: timeFromMinutes(minutes(activity.start) + shiftAmount),
-              end: timeFromMinutes(minutes(activity.end) + shiftAmount),
-            };
-          }),
-          { ...captured, id: Date.now() },
-        ]);
-      } else {
-        setActivities((current) => [...current, { ...captured, id: Date.now() }]);
-      }
+      const placement = placeActivityWithCollisionCascade(activities, { ...captured, id: Date.now() });
+      setActivities(placement.activities);
 
       setQuickNote("");
       setMoveNotice(
         `${captured.title} was added at ${friendlyTime(captured.start)}.` +
-          (conflict
-            ? ` ${conflict.title} and later activities shifted ${shiftAmount} minutes.`
+          (placement.shiftedCount
+            ? ` ${placement.shiftedCount} overlapping ${placement.shiftedCount === 1 ? "activity was" : "activities were"} shifted only as far as needed.`
             : " It fit into an open time slot."),
       );
     } catch (error) {
@@ -782,30 +795,18 @@ export default function Home() {
 
     const sourceDuration = duration(source.start, source.end);
     const targetStart = minutes(target.start);
-
-    setActivities((current) => current.map((activity) => {
-      if (activity.id === source.id) {
-        return {
-          ...activity,
-          start: timeFromMinutes(targetStart),
-          end: timeFromMinutes(targetStart + sourceDuration),
-        };
-      }
-
-      if (minutes(activity.start) >= targetStart) {
-        return {
-          ...activity,
-          start: timeFromMinutes(minutes(activity.start) + sourceDuration),
-          end: timeFromMinutes(minutes(activity.end) + sourceDuration),
-        };
-      }
-
-      return activity;
-    }));
+    const placement = placeActivityWithCollisionCascade(activities, {
+      ...source,
+      start: timeFromMinutes(targetStart),
+      end: timeFromMinutes(targetStart + sourceDuration),
+    });
+    setActivities(placement.activities);
 
     setMoveNotice(
       source.title + " now starts at " + friendlyTime(target.start) + ". " +
-      target.title + " and later activities shifted " + sourceDuration + " minutes.",
+      placement.shiftedCount + " overlapping " +
+      (placement.shiftedCount === 1 ? "activity was" : "activities were") +
+      " shifted only as far as needed; later activities kept their original times once a gap absorbed the move.",
     );
     setMoveModeId(null);
   }
