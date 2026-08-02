@@ -48,6 +48,7 @@ type SavedMvp = {
 type ProfileData = {
   name: string;
   focusArea: string;
+  customChallenge: string;
   focusGoal: string;
 };
 
@@ -182,9 +183,11 @@ export default function Home() {
   const [profileChecked, setProfileChecked] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileFocusArea, setProfileFocusArea] = useState("");
+  const [profileCustomChallenge, setProfileCustomChallenge] = useState("");
   const [profileFocusGoal, setProfileFocusGoal] = useState("");
   const [profileDraft, setProfileDraft] = useState("");
   const [profileFocusAreaDraft, setProfileFocusAreaDraft] = useState("");
+  const [profileCustomChallengeDraft, setProfileCustomChallengeDraft] = useState("");
   const [profileFocusGoalDraft, setProfileFocusGoalDraft] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
@@ -199,7 +202,7 @@ export default function Home() {
 
   useEffect(() => {
     let parsed: SavedMvp | null = null;
-    let savedProfile: ProfileData = { name: "", focusArea: "", focusGoal: "" };
+    let savedProfile: ProfileData = { name: "", focusArea: "", customChallenge: "", focusGoal: "" };
     try {
       const saved = window.localStorage.getItem("resequence-mvp");
       if (saved) parsed = JSON.parse(saved);
@@ -209,6 +212,7 @@ export default function Home() {
         savedProfile = {
           name: typeof profile.name === "string" ? profile.name.trim() : "",
           focusArea: typeof profile.focusArea === "string" ? profile.focusArea : "",
+          customChallenge: typeof profile.customChallenge === "string" ? profile.customChallenge.trim() : "",
           focusGoal: typeof profile.focusGoal === "string" ? profile.focusGoal.trim() : "",
         };
       } else {
@@ -230,9 +234,11 @@ export default function Home() {
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
       setProfileName(savedProfile.name);
       setProfileFocusArea(savedProfile.focusArea);
+      setProfileCustomChallenge(savedProfile.customChallenge);
       setProfileFocusGoal(savedProfile.focusGoal);
       setProfileDraft(savedProfile.name);
       setProfileFocusAreaDraft(savedProfile.focusArea);
+      setProfileCustomChallengeDraft(savedProfile.customChallenge);
       setProfileFocusGoalDraft(savedProfile.focusGoal);
       setProfileChecked(true);
       setDay(selectedDay);
@@ -535,13 +541,17 @@ export default function Home() {
   function saveProfile(event: React.FormEvent) {
     event.preventDefault();
     const name = profileDraft.trim().replace(/\s+/g, " ");
+    const customChallenge = profileFocusAreaDraft === "other"
+      ? profileCustomChallengeDraft.trim().replace(/\s+/g, " ")
+      : "";
     const focusGoal = profileFocusGoalDraft.trim().replace(/\s+/g, " ");
-    if (!name || !profileFocusAreaDraft || !focusGoal) return;
-    const profile = { name, focusArea: profileFocusAreaDraft, focusGoal };
+    if (!name || !profileFocusAreaDraft || !focusGoal || (profileFocusAreaDraft === "other" && !customChallenge)) return;
+    const profile = { name, focusArea: profileFocusAreaDraft, customChallenge, focusGoal };
     window.localStorage.setItem("resequence-profile", JSON.stringify(profile));
     window.localStorage.setItem("resequence-profile-name", name);
     setProfileName(name);
     setProfileFocusArea(profileFocusAreaDraft);
+    setProfileCustomChallenge(customChallenge);
     setProfileFocusGoal(focusGoal);
     setProfileOpen(false);
   }
@@ -582,6 +592,7 @@ export default function Home() {
             onClick={() => {
               setProfileDraft(profileName);
               setProfileFocusAreaDraft(profileFocusArea);
+              setProfileCustomChallengeDraft(profileCustomChallenge);
               setProfileFocusGoalDraft(profileFocusGoal);
               setProfileOpen((current) => !current);
             }}
@@ -1000,7 +1011,7 @@ export default function Home() {
         </section>
       )}
 
-      {profileChecked && (!profileName || !profileFocusArea || !profileFocusGoal) && (
+      {profileChecked && (!profileName || !profileFocusArea || !profileFocusGoal || (profileFocusArea === "other" && !profileCustomChallenge)) && (
         <div className="edit-modal-backdrop profile-backdrop" role="presentation">
           <form
             className="profile-modal"
@@ -1012,7 +1023,7 @@ export default function Home() {
             <div className="profile-mark" aria-hidden="true">{initials(profileDraft)}</div>
             <div className="eyebrow">Welcome to Resequence</div>
             <h2 id="profile-title">What should we help you improve?</h2>
-            <p>Your productivity focus helps Resequence connect your day to the problem you actually want to solve.</p>
+            <p>What you would like to change helps Resequence connect your day to the result you actually want.</p>
             <div className="profile-fields">
               <label>
                 <span>Your name</span>
@@ -1034,12 +1045,24 @@ export default function Home() {
                   ))}
                 </select>
               </label>
+              {profileFocusAreaDraft === "other" && (
+                <label className="custom-challenge-field">
+                  <span>What is your main challenge?</span>
+                  <input
+                    value={profileCustomChallengeDraft}
+                    onChange={(event) => setProfileCustomChallengeDraft(event.target.value)}
+                    placeholder="e.g. I lose momentum after taking a break."
+                    maxLength={120}
+                    required
+                  />
+                </label>
+              )}
               <label>
-                <span>Productivity focus</span>
+                <span>What would you like to change?</span>
                 <textarea
                   value={profileFocusGoalDraft}
                   onChange={(event) => setProfileFocusGoalDraft(event.target.value)}
-                  placeholder="e.g. Once I open my phone, I struggle to put it down and return to my work."
+                  placeholder="e.g. I want to put my phone down after 15 minutes and return to my main task."
                   maxLength={300}
                 />
               </label>
@@ -1047,7 +1070,7 @@ export default function Home() {
             <button
               className="primary-button"
               type="submit"
-              disabled={!profileDraft.trim() || !profileFocusAreaDraft || !profileFocusGoalDraft.trim()}
+              disabled={!profileDraft.trim() || !profileFocusAreaDraft || !profileFocusGoalDraft.trim() || (profileFocusAreaDraft === "other" && !profileCustomChallengeDraft.trim())}
             >
               Save my focus <span>→</span>
             </button>
@@ -1084,15 +1107,32 @@ export default function Home() {
                   ))}
                 </select>
               </label>
+              {profileFocusAreaDraft === "other" && (
+                <label className="custom-challenge-field">
+                  <span>What is your main challenge?</span>
+                  <input
+                    value={profileCustomChallengeDraft}
+                    onChange={(event) => setProfileCustomChallengeDraft(event.target.value)}
+                    placeholder="e.g. I lose momentum after taking a break."
+                    maxLength={120}
+                    required
+                  />
+                </label>
+              )}
               <label>
-                <span>Productivity focus</span>
-                <textarea value={profileFocusGoalDraft} onChange={(event) => setProfileFocusGoalDraft(event.target.value)} maxLength={300} />
+                <span>What would you like to change?</span>
+                <textarea
+                  value={profileFocusGoalDraft}
+                  onChange={(event) => setProfileFocusGoalDraft(event.target.value)}
+                  placeholder="e.g. I want to put my phone down after 15 minutes and return to my main task."
+                  maxLength={300}
+                />
               </label>
             </div>
             <button
               className="primary-button"
               type="submit"
-              disabled={!profileDraft.trim() || !profileFocusAreaDraft || !profileFocusGoalDraft.trim()}
+              disabled={!profileDraft.trim() || !profileFocusAreaDraft || !profileFocusGoalDraft.trim() || (profileFocusAreaDraft === "other" && !profileCustomChallengeDraft.trim())}
             >Save changes <span>→</span></button>
           </form>
         </div>
