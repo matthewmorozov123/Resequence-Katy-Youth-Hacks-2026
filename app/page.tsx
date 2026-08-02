@@ -6,11 +6,6 @@ type Step = "timeline" | "tasks" | "insights";
 type ActivityKind = "focus" | "digital" | "movement" | "routine" | "rest";
 type Theme = "light" | "dark";
 
-type PendingMove = {
-  activityId: number;
-  targetTitle?: string;
-};
-
 type Activity = {
   id: number;
   title: string;
@@ -93,12 +88,19 @@ function duration(start: string, end: string) {
   return Math.max(0, minutes(end) - minutes(start));
 }
 
+function timeFromMinutes(value: number) {
+  const hour = Math.floor(value / 60);
+  const minute = value % 60;
+  return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+}
+
 function friendlyTime(value: string) {
   const parts = value.split(":").map(Number);
-  const hour = parts[0];
+  const dayOffset = Math.floor(parts[0] / 24);
+  const hour = parts[0] % 24;
   const suffix = hour >= 12 ? "PM" : "AM";
   const display = hour % 12 || 12;
-  return display + ":" + String(parts[1]).padStart(2, "0") + " " + suffix;
+  return display + ":" + String(parts[1]).padStart(2, "0") + " " + suffix + (dayOffset ? " +" + dayOffset : "");
 }
 
 function activityFromText(text: string, id: number): Activity {
@@ -129,9 +131,8 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>("light");
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dropTargetId, setDropTargetId] = useState<number | null>(null);
-  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
-  const [moveStart, setMoveStart] = useState("");
-  const [moveEnd, setMoveEnd] = useState("");
+  const [moveModeId, setMoveModeId] = useState<number | null>(null);
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let parsed: { activities?: Activity[]; tasks?: Task[]; day?: string; theme?: Theme } | null = null;
@@ -242,30 +243,47 @@ export default function Home() {
     setTasks((current) => current.map((task) => (task.id === id ? { ...task, [field]: value } : task)));
   }
 
-  function openMoveDialog(activity: Activity, targetTitle?: string) {
-    setPendingMove({ activityId: activity.id, targetTitle });
-    setMoveStart(activity.start);
-    setMoveEnd(activity.end);
+  function moveActivityToSlot(activityId: number, targetId: number) {
+    const source = activities.find((item) => item.id === activityId);
+    const target = activities.find((item) => item.id === targetId);
+    if (!source || !target || source.id === target.id) return;
+
+    const sourceDuration = duration(source.start, source.end);
+    const targetStart = minutes(target.start);
+
+    setActivities((current) => current.map((activity) => {
+      if (activity.id === source.id) {
+        return {
+          ...activity,
+          start: timeFromMinutes(targetStart),
+          end: timeFromMinutes(targetStart + sourceDuration),
+        };
+      }
+
+      if (minutes(activity.start) >= targetStart) {
+        return {
+          ...activity,
+          start: timeFromMinutes(minutes(activity.start) + sourceDuration),
+          end: timeFromMinutes(minutes(activity.end) + sourceDuration),
+        };
+      }
+
+      return activity;
+    }));
+
+    setMoveNotice(
+      source.title + " now starts at " + friendlyTime(target.start) + ". " +
+      target.title + " and later activities shifted " + sourceDuration + " minutes.",
+    );
+    setMoveModeId(null);
   }
 
   function handleActivityDrop(event: React.DragEvent, target: Activity) {
     event.preventDefault();
     const id = draggedId ?? Number(event.dataTransfer.getData("text/plain"));
-    const activity = activities.find((item) => item.id === id);
-    if (activity && activity.id !== target.id) openMoveDialog(activity, target.title);
+    if (Number.isFinite(id) && id !== target.id) moveActivityToSlot(id, target.id);
     setDraggedId(null);
     setDropTargetId(null);
-  }
-
-  function confirmActivityTime(event: React.FormEvent) {
-    event.preventDefault();
-    if (!pendingMove || minutes(moveEnd) <= minutes(moveStart)) return;
-    setActivities((current) => current.map((activity) => (
-      activity.id === pendingMove.activityId
-        ? { ...activity, start: moveStart, end: moveEnd }
-        : activity
-    )));
-    setPendingMove(null);
   }
 
   function resetDemo() {
@@ -354,7 +372,13 @@ export default function Home() {
                 )}
                 {sortedActivities.map((activity) => (
                   <article
-                    className={"timeline-item" + (dropTargetId === activity.id ? " drop-target" : "") + (draggedId === activity.id ? " dragging" : "")}
+                    className={
+                      "timeline-item" +
+                      (dropTargetId === activity.id ? " drop-target" : "") +
+                      (draggedId === activity.id ? " dragging" : "") +
+                      (moveModeId !== null && moveModeId !== activity.id ? " move-destination" : "") +
+                      (moveModeId === activity.id ? " move-source" : "")
+                    }
                     key={activity.id}
                     style={{ minHeight: String(Math.max(76, duration(activity.start, activity.end) * 1.15)) + "px" }}
                     onDragOver={(event) => {
@@ -364,6 +388,11 @@ export default function Home() {
                     }}
                     onDragLeave={() => setDropTargetId((current) => current === activity.id ? null : current)}
                     onDrop={(event) => handleActivityDrop(event, activity)}
+                    onClick={() => {
+                      if (moveModeId !== null && moveModeId !== activity.id) {
+                        moveActivityToSlot(moveModeId, activity.id);
+                      }
+                    }}
                   >
                     <time>{friendlyTime(activity.start)}<small>{duration(activity.start, activity.end)} min</small></time>
                     <div className="timeline-dot" />
@@ -372,6 +401,7 @@ export default function Home() {
                       draggable
                       onDragStart={(event) => {
                         setDraggedId(activity.id);
+                        setMoveModeId(null);
                         event.dataTransfer.effectAllowed = "move";
                         event.dataTransfer.setData("text/plain", String(activity.id));
                       }}
@@ -388,13 +418,22 @@ export default function Home() {
                       <div className="activity-actions">
                         <button
                           className="drag-handle"
-                          onClick={() => openMoveDialog(activity)}
-                          aria-label={"Move " + activity.title + " to a different time"}
-                          title="Drag to move or click to change time"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setMoveModeId(activity.id);
+                            setMoveNotice("Choose the activity that " + activity.title + " should replace.");
+                          }}
+                          aria-label={"Move " + activity.title + " before another activity"}
+                          aria-pressed={moveModeId === activity.id}
+                          title="Drag to move or click, then choose a destination"
                         ><span aria-hidden="true">⠿</span><b>Move</b></button>
                         <button
                           className="remove-button"
-                          onClick={() => setActivities((current) => current.filter((item) => item.id !== activity.id))}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActivities((current) => current.filter((item) => item.id !== activity.id));
+                            if (moveModeId === activity.id) setMoveModeId(null);
+                          }}
                           aria-label={"Remove " + activity.title}
                         >×</button>
                       </div>
@@ -635,40 +674,19 @@ export default function Home() {
         </div>
       )}
 
-      {pendingMove && (() => {
-        const activity = activities.find((item) => item.id === pendingMove.activityId);
-        if (!activity) return null;
-        const validTime = moveStart !== "" && moveEnd !== "" && minutes(moveEnd) > minutes(moveStart);
-        return (
-          <div className="time-modal-backdrop" role="presentation" onMouseDown={() => setPendingMove(null)}>
-            <form
-              className="time-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="time-modal-title"
-              onMouseDown={(event) => event.stopPropagation()}
-              onSubmit={confirmActivityTime}
-            >
-              <button className="drawer-close" type="button" onClick={() => setPendingMove(null)} aria-label="Cancel moving activity">×</button>
-              <div className="move-icon" aria-hidden="true">↕</div>
-              <div className="eyebrow">Activity moved</div>
-              <h2 id="time-modal-title">What time was<br />“{activity.title}”?</h2>
-              {pendingMove.targetTitle && <p className="move-context">You placed it near <strong>{pendingMove.targetTitle}</strong>. Confirm the actual time so your timeline stays accurate.</p>}
-              {!pendingMove.targetTitle && <p className="move-context">Choose its new time and Resequence will place it correctly in your day.</p>}
-              <div className="time-fields">
-                <label><span>Started</span><input type="time" value={moveStart} onChange={(event) => setMoveStart(event.target.value)} autoFocus /></label>
-                <span className="time-arrow" aria-hidden="true">→</span>
-                <label><span>Ended</span><input type="time" value={moveEnd} onChange={(event) => setMoveEnd(event.target.value)} /></label>
-              </div>
-              {!validTime && <p className="time-error">End time must be later than the start time.</p>}
-              <div className="modal-actions">
-                <button className="back-button" type="button" onClick={() => setPendingMove(null)}>Cancel</button>
-                <button className="primary-button" type="submit" disabled={!validTime}>Update timeline <span>→</span></button>
-              </div>
-            </form>
-          </div>
-        );
-      })()}
+      {moveNotice && (
+        <div className={"move-toast" + (moveModeId !== null ? " choosing" : "")} role="status" aria-live="polite">
+          <span className="move-toast-icon" aria-hidden="true">{moveModeId !== null ? "↕" : "✓"}</span>
+          <p>{moveNotice}</p>
+          <button
+            onClick={() => {
+              setMoveNotice(null);
+              setMoveModeId(null);
+            }}
+            aria-label={moveModeId !== null ? "Cancel moving activity" : "Dismiss message"}
+          >×</button>
+        </div>
+      )}
     </main>
   );
 }

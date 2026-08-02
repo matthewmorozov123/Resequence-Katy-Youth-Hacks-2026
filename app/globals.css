@@ -118,6 +118,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .activity-card:hover { transform: translateX(4px); box-shadow: 0 8px 24px rgba(16,35,63,.08); }
 .timeline-item.dragging .activity-card { opacity: .42; transform: scale(.985); }
 .timeline-item.drop-target .activity-card { outline: 2px dashed var(--lime-deep); outline-offset: 4px; transform: translateX(10px); }
+.timeline-item.move-source .activity-card { outline: 2px solid var(--lime-deep); outline-offset: 3px; }
+.timeline-item.move-destination { cursor: pointer; }
+.timeline-item.move-destination .activity-card { cursor: pointer; }
+.timeline-item.move-destination .activity-card:hover { outline: 2px dashed var(--lime-deep); outline-offset: 4px; transform: translateX(10px); }
 .kind-focus { background: var(--blue); }
 .kind-digital { background: var(--coral); }
 .kind-movement { background: var(--lime); }
@@ -282,18 +286,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .source-list a { color: var(--ink); font-size: 10px; }
 .primary-button.full { width: 100%; }
 
-.time-modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(6,15,28,.64); backdrop-filter: blur(8px); display: grid; place-items: center; padding: 22px; }
-.time-modal { width: min(540px, 100%); background: var(--paper); color: var(--ink); padding: 44px; box-shadow: 0 30px 100px rgba(0,0,0,.32); position: relative; animation: modal-in .24s ease both; }
-@keyframes modal-in { from { transform: translateY(12px) scale(.985); opacity: 0; } }
-.move-icon { width: 46px; height: 46px; display: grid; place-items: center; background: var(--lime); color: #10233f; border-radius: 50%; font-size: 22px; margin-bottom: 25px; }
-.time-modal h2 { font-size: 40px; line-height: 1.03; letter-spacing: -.055em; margin: 18px 0 13px; padding-right: 30px; }
-.move-context { color: var(--ink-soft); font-size: 12px; line-height: 1.6; max-width: 430px; }
-.time-fields { display: grid; grid-template-columns: 1fr 26px 1fr; align-items: end; gap: 12px; margin-top: 28px; }
-.time-fields label > span { display: block; font-family: var(--font-geist-mono); font-size: 8px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-soft); margin-bottom: 8px; }
-.time-fields input { width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; color: var(--ink); padding: 8px 0 10px; font-weight: 700; }
-.time-arrow { text-align: center; padding-bottom: 11px; color: var(--ink-soft); }
-.time-error { color: var(--coral); font-size: 10px; margin: 9px 0 0; }
-.modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; border-top: 1px solid var(--line); margin-top: 30px; padding-top: 20px; }
+.move-toast { position: fixed; z-index: 65; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(620px, calc(100vw - 36px)); min-height: 64px; background: var(--ink); color: var(--paper); box-shadow: 0 18px 60px rgba(0,0,0,.24); display: grid; grid-template-columns: 34px 1fr 28px; align-items: center; gap: 12px; padding: 12px 16px; animation: toast-in .22s ease both; }
+@keyframes toast-in { from { transform: translate(-50%, 10px); opacity: 0; } }
+.move-toast.choosing { background: var(--lime); color: #10233f; }
+.move-toast-icon { width: 30px; height: 30px; border-radius: 50%; border: 1px solid currentColor; display: grid; place-items: center; font-weight: 800; }
+.move-toast p { margin: 0; font-size: 11px; line-height: 1.45; }
+.move-toast > button { border: 0; background: transparent; font-size: 20px; cursor: pointer; opacity: .65; }
 
 .app-shell[data-theme="dark"] .topbar { background: rgba(11,20,33,.92); }
 .app-shell[data-theme="dark"] .sticky-action { background: rgba(11,20,33,.94); }
@@ -319,8 +317,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-shell[data-theme="dark"] .insight-card.worked { background: #192638; }
 .app-shell[data-theme="dark"] .insight-card.friction { background: #8e4b48; }
 .app-shell[data-theme="dark"] .source-drawer,
-.app-shell[data-theme="dark"] .tomorrow-timeline,
-.app-shell[data-theme="dark"] .time-modal { background: #111e2e; }
+.app-shell[data-theme="dark"] .tomorrow-timeline { background: #111e2e; }
+.app-shell[data-theme="dark"] .move-toast:not(.choosing) { background: #eef2f6; color: #0b1421; }
 .app-shell[data-theme="dark"] select {
   color-scheme: dark;
   background-color: #111e2e;
@@ -393,10 +391,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .disclaimer { margin: 0 18px; display: block; }
   .disclaimer p { margin-top: 8px; line-height: 1.5; }
   .source-drawer { padding: 45px 24px 30px; }
-  .time-modal { padding: 35px 24px 25px; }
-  .time-modal h2 { font-size: 33px; }
-  .time-fields { grid-template-columns: 1fr 20px 1fr; }
-  .modal-actions { justify-content: space-between; }
+  .move-toast { bottom: 88px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
