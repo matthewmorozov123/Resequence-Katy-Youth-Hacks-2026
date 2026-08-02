@@ -41,11 +41,45 @@ type Source = {
   experiments: string[];
 };
 
+type AnalysisConfidence = "High" | "Moderate" | "Exploratory";
+
+type AnalysisInsight = {
+  title: string;
+  explanation: string;
+  sourceIds: number[];
+  confidence: AnalysisConfidence;
+};
+
+type TomorrowPlanItem = {
+  time: string;
+  title: string;
+  note: string;
+  kind: ActivityKind;
+  durationMinutes: number;
+  relatedTaskId: number | null;
+};
+
+type DayAnalysis = {
+  headline: string;
+  summary: string;
+  worked: AnalysisInsight & { observation: string };
+  friction: AnalysisInsight;
+  experiment: AnalysisInsight & { ifThenPlan: string };
+  changes: { title: string; reason: string }[];
+  tomorrowIntro: string;
+  tomorrowPlan: TomorrowPlanItem[];
+  caveat: string;
+};
+
 type DayData = {
   activities: Activity[];
   tasks: Task[];
   wakeTime?: string;
   sleepTime?: string;
+  analysis?: DayAnalysis | null;
+  analysisFingerprint?: string;
+  analysisUsedAI?: boolean;
+  analysisAccepted?: boolean;
 };
 type SavedMvp = {
   days?: Record<string, DayData>;
@@ -415,6 +449,21 @@ function todayDateValue() {
   return `${year}-${month}-${date}`;
 }
 
+function offsetDateValue(value: string, offset: number) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateHeading(value: string) {
+  if (!value) return "Tomorrow";
+  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("priorities");
   const [day, setDay] = useState("");
@@ -431,6 +480,11 @@ export default function Home() {
   const [quickTaskId, setQuickTaskId] = useState<number | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [analysis, setAnalysis] = useState<DayAnalysis | null>(null);
+  const [analysisFingerprint, setAnalysisFingerprint] = useState("");
+  const [analysisUsedAI, setAnalysisUsedAI] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
   const [profileName, setProfileName] = useState("");
@@ -484,6 +538,10 @@ export default function Home() {
       else setTasks([]);
       if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
+      setAnalysis(savedDay?.analysis ?? null);
+      setAnalysisFingerprint(savedDay?.analysisFingerprint ?? "");
+      setAnalysisUsedAI(savedDay?.analysisUsedAI ?? false);
+      setAccepted(savedDay?.analysisAccepted ?? false);
       if (Array.isArray(parsed?.enabledSources)) {
         setEnabledSources(parsed.enabledSources.filter((id) => defaultSourceIds.includes(id)));
       } else {
@@ -519,9 +577,26 @@ export default function Home() {
     }
     window.localStorage.setItem(
       "resequence-mvp",
-      JSON.stringify({ days: { ...days, [day]: { activities, tasks, wakeTime, sleepTime } }, day, theme, enabledSources }),
+      JSON.stringify({
+        days: {
+          ...days,
+          [day]: {
+            activities,
+            tasks,
+            wakeTime,
+            sleepTime,
+            analysis,
+            analysisFingerprint,
+            analysisUsedAI,
+            analysisAccepted: accepted,
+          },
+        },
+        day,
+        theme,
+        enabledSources,
+      }),
     );
-  }, [activities, tasks, day, wakeTime, sleepTime, theme, enabledSources, hydrated]);
+  }, [activities, tasks, day, wakeTime, sleepTime, theme, enabledSources, analysis, analysisFingerprint, analysisUsedAI, accepted, hydrated]);
 
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => a.start.localeCompare(b.start)),
@@ -559,21 +634,112 @@ export default function Home() {
     Math.min(100, Math.round(weightedTaskScore * 0.8 + Math.max(30, 100 - contextSwitches * 8) * 0.2)),
   );
 
-  const hardestTask = [...tasks].sort(
-    (a, b) => b.importance * b.difficulty - a.importance * a.difficulty,
-  )[0];
+  const profileChallenge = profileFocusArea === "other"
+    ? profileCustomChallenge
+    : productivityChallenges.find((challenge) => challenge.value === profileFocusArea)?.label ?? profileFocusArea;
 
-  const secondTask = [...tasks].sort(
-    (a, b) => b.importance * b.difficulty - a.importance * a.difficulty,
-  )[1];
+  const currentAnalysisFingerprint = useMemo(() => JSON.stringify({
+    day,
+    wakeTime,
+    sleepTime,
+    tasks,
+    activities: sortedActivities,
+    enabledSources,
+    profileChallenge,
+    profileFocusGoal,
+  }), [day, wakeTime, sleepTime, tasks, sortedActivities, enabledSources, profileChallenge, profileFocusGoal]);
 
-  const tomorrow = [
-    { time: "7:00", title: "Morning routine", note: "Keep the start calm and realistic", kind: "routine" },
-    { time: "7:45", title: hardestTask?.title || "Highest-impact task", note: "Protected focus · notifications off", kind: "focus" },
-    { time: "9:00", title: "Messages + phone", note: "Digital tasks grouped into one window", kind: "digital" },
-    { time: "9:30", title: "Movement break", note: "A clear transition before the next block", kind: "movement" },
-    { time: "10:15", title: secondTask?.title || "Second priority task", note: "50-minute focus block", kind: "focus" },
-  ];
+  const tomorrow = analysis?.tomorrowPlan ?? [];
+  const tomorrowDate = day ? offsetDateValue(day, 1) : "";
+
+  async function analyzeDay(force = false) {
+    if (analysisLoading || !tasks.length) return;
+    setStep("insights");
+    setAnalysisError(null);
+    if (!force && analysis && analysisFingerprint === currentAnalysisFingerprint) return;
+
+    setAnalysisLoading(true);
+    try {
+      const response = await fetch("/api/analyze-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: day,
+          profile: {
+            challenge: profileChallenge,
+            desiredChange: profileFocusGoal,
+          },
+          tasks,
+          activities: sortedActivities,
+          wakeTime,
+          sleepTime,
+          enabledSourceIds: enabledSources,
+          metrics: {
+            dayScore,
+            weightedTaskScore,
+            priorityMinutes,
+            contextSwitches,
+            awakeMinutes,
+          },
+        }),
+      });
+      const result = (await response.json()) as { analysis?: DayAnalysis; usedAI?: boolean; error?: string };
+      if (!response.ok || !result.analysis) throw new Error(result.error || "Resequence could not analyze this day.");
+      setAnalysis(result.analysis);
+      setAnalysisFingerprint(currentAnalysisFingerprint);
+      setAnalysisUsedAI(result.usedAI ?? false);
+      setAccepted(false);
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "Resequence could not analyze this day.");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  function acceptTomorrowPlan() {
+    if (!analysis || !tomorrowDate) return;
+    let saved: SavedMvp = {};
+    try {
+      saved = JSON.parse(window.localStorage.getItem("resequence-mvp") || "{}") as SavedMvp;
+    } catch {
+      // A clean local record can still be created for tomorrow.
+    }
+    const days = saved.days ?? {};
+    const existingTomorrow = days[tomorrowDate];
+    if (existingTomorrow && ((existingTomorrow.activities?.length ?? 0) || (existingTomorrow.tasks?.length ?? 0))) {
+      setAnalysisError("Tomorrow already has activities or priorities. Open that day before replacing its plan.");
+      return;
+    }
+
+    const tomorrowTasks = tasks
+      .filter((task) => task.completion < 100)
+      .map((task) => ({ ...task, completion: 0 }));
+    const tomorrowTaskIds = new Set(tomorrowTasks.map((task) => task.id));
+    const baseId = Date.now();
+    const tomorrowActivities: Activity[] = analysis.tomorrowPlan.map((item, index) => ({
+      id: baseId + index,
+      title: item.title,
+      start: item.time,
+      end: timeFromMinutes(minutes(item.time) + item.durationMinutes),
+      kind: item.kind,
+      taskId: item.relatedTaskId !== null && tomorrowTaskIds.has(item.relatedTaskId) ? item.relatedTaskId : null,
+    }));
+
+    days[tomorrowDate] = {
+      activities: tomorrowActivities,
+      tasks: tomorrowTasks,
+      wakeTime,
+      sleepTime,
+      analysis: null,
+      analysisFingerprint: "",
+      analysisUsedAI: false,
+      analysisAccepted: false,
+    };
+    days[day] = { activities, tasks, wakeTime, sleepTime, analysis, analysisFingerprint, analysisUsedAI, analysisAccepted: true };
+    window.localStorage.setItem("resequence-mvp", JSON.stringify({ ...saved, days, day, theme, enabledSources }));
+    setAnalysisError(null);
+    setAccepted(true);
+  }
 
   async function mapQuickNote() {
     const note = quickNote.trim();
@@ -776,7 +942,7 @@ export default function Home() {
     } catch {
       // A new day can still begin if local history cannot be read.
     }
-    days[day] = { activities, tasks, wakeTime, sleepTime };
+    days[day] = { activities, tasks, wakeTime, sleepTime, analysis, analysisFingerprint, analysisUsedAI, analysisAccepted: accepted };
     const next = days[nextDay] ?? { activities: [], tasks: [], wakeTime: "07:00", sleepTime: "23:00" };
     window.localStorage.setItem("resequence-mvp", JSON.stringify({ days, day: nextDay, theme, enabledSources }));
     setDay(nextDay);
@@ -784,8 +950,12 @@ export default function Home() {
     setTasks(next.tasks);
     setWakeTime(next.wakeTime ?? "07:00");
     setSleepTime(next.sleepTime ?? "23:00");
+    setAnalysis(next.analysis ?? null);
+    setAnalysisFingerprint(next.analysisFingerprint ?? "");
+    setAnalysisUsedAI(next.analysisUsedAI ?? false);
+    setAccepted(next.analysisAccepted ?? false);
+    setAnalysisError(null);
     setQuickTaskId(null);
-    setAccepted(false);
   }
 
   function startNextDay() {
@@ -1181,7 +1351,7 @@ export default function Home() {
             <button className="back-button" onClick={() => setStep("timeline")}>← Back to timeline</button>
             <div className="action-spacer" />
             <div className="analysis-ready"><span className="pulse" /> <b>{enabledSources.length} sources ready</b></div>
-            <button className="primary-button" onClick={() => setStep("insights")} disabled={!tasks.length}>
+            <button className="primary-button" onClick={() => void analyzeDay()} disabled={!tasks.length || analysisLoading}>
               Analyze & resequence <span>→</span>
             </button>
           </div>
@@ -1190,81 +1360,133 @@ export default function Home() {
 
       {step === "insights" && (
         <section className="insights-page">
-          <div className="results-hero">
-            <div>
-              <div className="eyebrow light">Step 4 of 4 · Your daily debrief</div>
-              <h1>Good progress.<br /><em>One useful shift.</em></h1>
-              <p>You moved your priorities forward. Your biggest opportunity is protecting the start of your hardest priority block.</p>
+          {analysisError && (
+            <div className="analysis-alert" role="alert">
+              <span>{analysisError}</span>
+              <button type="button" onClick={() => setAnalysisError(null)} aria-label="Dismiss message">×</button>
             </div>
-            <div className="score-orbit">
-              <span>Day signal</span>
-              <strong>{dayScore}</strong>
-              <small>out of 100</small>
-              <i style={{ transform: "rotate(" + String(dayScore * 3.6) + "deg)" }} />
-            </div>
-            <div className="hero-metrics">
-              <div><strong>{priorityMinutes}</strong><span>priority minutes</span></div>
-              <div><strong>{contextSwitches}</strong><span>context shifts</span></div>
-              <div><strong>{durationLabel(awakeMinutes)}</strong><span>awake window</span></div>
-              <div><strong>{weightedTaskScore}%</strong><span>weighted progress</span></div>
-            </div>
-          </div>
+          )}
 
-          <div className="insight-grid">
-            <article className="insight-card worked">
-              <div className="insight-number">01</div>
-              <span className="insight-label">What worked</span>
-              <h2>You returned to meaningful work.</h2>
-              <p>Despite a fragmented morning, you completed {weightedTaskScore}% of your weighted task value and logged {priorityMinutes} minutes connected to daily priorities.</p>
-              <div className="observation"><span>Observed in your day</span><b>Progress after interruption</b></div>
-            </article>
-            <article className="insight-card friction">
-              <div className="insight-number">02</div>
-              <span className="insight-label">Likely friction</span>
-              <h2>Your hardest task started after a switch.</h2>
-              <p>{hardestTask?.title || "Your top task"} was surrounded by short digital activity. Research suggests interruptions can create a resumption cost, but this is a hypothesis—not a diagnosis.</p>
-              {enabledSources.includes(1) && <a href={evidenceSources[0].url} target="_blank" rel="noreferrer">Systematic review · Medium confidence ↗</a>}
-            </article>
-            <article className="insight-card experiment">
-              <div className="insight-number">03</div>
-              <span className="insight-label">Tomorrow&apos;s experiment</span>
-              <h2>Protect one clean start.</h2>
-              <p>If it is 7:45 AM, begin your highest-impact task before opening messages. Try it once, then rate your focus—not your willpower.</p>
-              {enabledSources.includes(2) && <a href={evidenceSources[1].url} target="_blank" rel="noreferrer">Implementation intentions · Research-backed ↗</a>}
-            </article>
-          </div>
-
-          <section className="tomorrow-section">
-            <div className="tomorrow-copy">
-              <div className="eyebrow">A better sequence</div>
-              <h2>Tomorrow, redesigned.</h2>
-              <p>Only two changes: protect the first focus block and group digital tasks together. Your routine and movement still fit.</p>
-              <div className="change-list">
-                <div><span>1</span><p><b>Move the hardest task earlier</b>Use fresh attention on what matters most.</p></div>
-                <div><span>2</span><p><b>Batch digital activity</b>Create fewer boundaries to cross.</p></div>
-              </div>
-              <button className={accepted ? "accepted-button" : "primary-button"} onClick={() => setAccepted(true)}>
-                {accepted ? "✓ Plan accepted" : "Use this sequence tomorrow"}
-              </button>
-              <button className="text-button restart" onClick={startNextDay}>Start a new day</button>
+          {analysisLoading && (
+            <div className="analysis-loading" aria-live="polite">
+              <span className="analysis-loader" aria-hidden="true" />
+              <div className="eyebrow">Reading the sequence</div>
+              <h1>Connecting your day to the evidence.</h1>
+              <p>Resequence is comparing timing, transitions, priority progress, and your personal challenge.</p>
             </div>
-            <div className="tomorrow-timeline">
-              <div className="tomorrow-header"><span>Sunday · Aug 2</span><b>Suggested plan</b></div>
-              {tomorrow.map((item, index) => (
-                <div className="tomorrow-item" key={item.time + item.title}>
-                  <time>{item.time}</time>
-                  <span className={"tomorrow-dot kind-" + item.kind}>{String(index + 1).padStart(2, "0")}</span>
-                  <div><h3>{item.title}</h3><p>{item.note}</p></div>
+          )}
+
+          {!analysisLoading && !analysis && (
+            <div className="analysis-empty">
+              <div className="eyebrow">Analysis unavailable</div>
+              <h1>Your timeline is still safe.</h1>
+              <p>Try the analysis again. Nothing from your day will be removed or changed.</p>
+              <button className="primary-button" type="button" onClick={() => void analyzeDay(true)}>Try again <span>→</span></button>
+              <button className="text-button" type="button" onClick={() => setStep("outcomes")}>Back to outcomes</button>
+            </div>
+          )}
+
+          {!analysisLoading && analysis && (
+            <>
+              <div className="results-hero">
+                <div>
+                  <div className="eyebrow light">Step 4 of 4 · Your daily debrief</div>
+                  <h1>{analysis.headline}</h1>
+                  <p>{analysis.summary}</p>
+                  <div className="analysis-origin">
+                    <span>{analysisUsedAI ? "AI analysis" : "Reliable local analysis"}</span>
+                    <button type="button" onClick={() => void analyzeDay(true)}>Analyze again</button>
+                  </div>
                 </div>
-              ))}
-              <div className="plan-footnote">Built from your priorities · <button onClick={() => setSourcesOpen(true)}>{enabledSources.length} sources active</button></div>
-            </div>
-          </section>
+                <div className="score-orbit">
+                  <span>Day signal</span>
+                  <strong>{dayScore}</strong>
+                  <small>out of 100</small>
+                  <i style={{ transform: "rotate(" + String(dayScore * 3.6) + "deg)" }} />
+                </div>
+                <div className="hero-metrics">
+                  <div><strong>{priorityMinutes}</strong><span>priority minutes</span></div>
+                  <div><strong>{contextSwitches}</strong><span>context shifts</span></div>
+                  <div><strong>{durationLabel(awakeMinutes)}</strong><span>awake window</span></div>
+                  <div><strong>{weightedTaskScore}%</strong><span>weighted progress</span></div>
+                </div>
+              </div>
 
-          <div className="disclaimer">
-            <b>Resequence is a coach, not a judge.</b>
-            <p>Insights describe patterns and evidence-informed hypotheses. They do not prove what caused your productivity or replace medical advice.</p>
-          </div>
+              <div className="insight-grid">
+                <article className="insight-card worked">
+                  <div className="insight-number">01</div>
+                  <span className="insight-label">What worked · {analysis.worked.confidence}</span>
+                  <h2>{analysis.worked.title}</h2>
+                  <p>{analysis.worked.explanation}</p>
+                  <div className="observation"><span>Observed in your day</span><b>{analysis.worked.observation}</b></div>
+                  <div className="insight-sources">
+                    {analysis.worked.sourceIds.map((id) => {
+                      const source = evidenceSources.find((item) => item.id === id);
+                      return source ? <a key={id} href={source.url} target="_blank" rel="noreferrer">{source.authors}, {source.year} ↗</a> : null;
+                    })}
+                  </div>
+                </article>
+                <article className="insight-card friction">
+                  <div className="insight-number">02</div>
+                  <span className="insight-label">Likely friction · {analysis.friction.confidence}</span>
+                  <h2>{analysis.friction.title}</h2>
+                  <p>{analysis.friction.explanation}</p>
+                  <div className="insight-sources">
+                    {analysis.friction.sourceIds.map((id) => {
+                      const source = evidenceSources.find((item) => item.id === id);
+                      return source ? <a key={id} href={source.url} target="_blank" rel="noreferrer">{source.authors}, {source.year} ↗</a> : null;
+                    })}
+                  </div>
+                </article>
+                <article className="insight-card experiment">
+                  <div className="insight-number">03</div>
+                  <span className="insight-label">Tomorrow&apos;s experiment · {analysis.experiment.confidence}</span>
+                  <h2>{analysis.experiment.title}</h2>
+                  <p>{analysis.experiment.explanation}</p>
+                  <div className="if-then-plan"><span>If–then plan</span><b>{analysis.experiment.ifThenPlan}</b></div>
+                  <div className="insight-sources">
+                    {analysis.experiment.sourceIds.map((id) => {
+                      const source = evidenceSources.find((item) => item.id === id);
+                      return source ? <a key={id} href={source.url} target="_blank" rel="noreferrer">{source.authors}, {source.year} ↗</a> : null;
+                    })}
+                  </div>
+                </article>
+              </div>
+
+              <section className="tomorrow-section">
+                <div className="tomorrow-copy">
+                  <div className="eyebrow">A better sequence</div>
+                  <h2>Tomorrow, redesigned.</h2>
+                  <p>{analysis.tomorrowIntro}</p>
+                  <div className="change-list">
+                    {analysis.changes.map((change, index) => (
+                      <div key={change.title}><span>{index + 1}</span><p><b>{change.title}</b>{change.reason}</p></div>
+                    ))}
+                  </div>
+                  <button className={accepted ? "accepted-button" : "primary-button"} onClick={acceptTomorrowPlan} disabled={accepted}>
+                    {accepted ? "✓ Added to tomorrow" : "Use this sequence tomorrow"}
+                  </button>
+                  <button className="text-button restart" onClick={startNextDay}>Open tomorrow</button>
+                </div>
+                <div className="tomorrow-timeline">
+                  <div className="tomorrow-header"><span>{dateHeading(tomorrowDate)}</span><b>Suggested plan</b></div>
+                  {tomorrow.map((item, index) => (
+                    <div className="tomorrow-item" key={item.time + item.title}>
+                      <time>{friendlyTime(item.time)}</time>
+                      <span className={"tomorrow-dot kind-" + item.kind}>{String(index + 1).padStart(2, "0")}</span>
+                      <div><h3>{item.title}</h3><p>{item.note} · {durationLabel(item.durationMinutes)}</p></div>
+                    </div>
+                  ))}
+                  <div className="plan-footnote">Built from your priorities · <button onClick={() => setSourcesOpen(true)}>{enabledSources.length} sources active</button></div>
+                </div>
+              </section>
+
+              <div className="disclaimer">
+                <b>Resequence is a coach, not a judge.</b>
+                <p>{analysis.caveat}</p>
+              </div>
+            </>
+          )}
         </section>
       )}
 
