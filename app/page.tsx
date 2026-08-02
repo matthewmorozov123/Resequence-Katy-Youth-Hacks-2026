@@ -138,9 +138,17 @@ function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function todayDateValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const date = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${date}`;
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("priorities");
-  const [day, setDay] = useState("2026-08-01");
+  const [day, setDay] = useState("");
   const [wakeTime, setWakeTime] = useState("07:00");
   const [sleepTime, setSleepTime] = useState("23:00");
   const [activities, setActivities] = useState<Activity[]>(sampleActivities);
@@ -179,12 +187,14 @@ export default function Home() {
       // Keep the polished demo state if local data is unavailable.
     }
     queueMicrotask(() => {
-      const selectedDay = typeof parsed?.day === "string" ? parsed.day : "2026-08-01";
+      const selectedDay = todayDateValue();
       const savedDay = parsed?.days?.[selectedDay];
       if (Array.isArray(savedDay?.activities)) setActivities(savedDay.activities);
-      else if (Array.isArray(parsed?.activities)) setActivities(parsed.activities);
+      else if (!parsed?.days && parsed?.day === selectedDay && Array.isArray(parsed?.activities)) setActivities(parsed.activities);
+      else setActivities([]);
       if (Array.isArray(savedDay?.tasks)) setTasks(savedDay.tasks);
-      else if (Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
+      else if (!parsed?.days && parsed?.day === selectedDay && Array.isArray(parsed?.tasks)) setTasks(parsed.tasks);
+      else setTasks([]);
       if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
       setProfileName(savedProfile);
