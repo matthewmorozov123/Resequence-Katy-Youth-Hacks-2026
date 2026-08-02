@@ -321,6 +321,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-shell[data-theme="dark"] .source-drawer,
 .app-shell[data-theme="dark"] .tomorrow-timeline,
 .app-shell[data-theme="dark"] .time-modal { background: #111e2e; }
+.app-shell[data-theme="dark"] select {
+  color-scheme: dark;
+  background-color: #111e2e;
+  color: #eef2f6;
+}
+.app-shell[data-theme="dark"] select option,
+.app-shell[data-theme="dark"] select optgroup {
+  background-color: #111e2e;
+  color: #eef2f6;
+}
 
 @media (max-width: 1000px) {
   .page-grid { grid-template-columns: 1fr; gap: 20px; }
