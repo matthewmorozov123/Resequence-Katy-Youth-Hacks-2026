@@ -50,13 +50,14 @@ type AnalysisInsight = {
   confidence: AnalysisConfidence;
 };
 
-type TomorrowPlanItem = {
-  time: string;
+type TomorrowSuggestion = {
   title: string;
-  note: string;
-  kind: ActivityKind;
-  durationMinutes: number;
-  relatedTaskId: number | null;
+  action: string;
+  anchor: string;
+  reason: string;
+  successMeasure: string;
+  sourceIds: number[];
+  confidence: AnalysisConfidence;
 };
 
 type DayAnalysis = {
@@ -65,9 +66,8 @@ type DayAnalysis = {
   worked: AnalysisInsight & { observation: string };
   friction: AnalysisInsight;
   experiment: AnalysisInsight & { ifThenPlan: string };
-  changes: { title: string; reason: string }[];
-  tomorrowIntro: string;
-  tomorrowPlan: TomorrowPlanItem[];
+  suggestionsIntro: string;
+  suggestions: TomorrowSuggestion[];
   caveat: string;
 };
 
@@ -79,7 +79,6 @@ type DayData = {
   analysis?: DayAnalysis | null;
   analysisFingerprint?: string;
   analysisUsedAI?: boolean;
-  analysisAccepted?: boolean;
 };
 type SavedMvp = {
   days?: Record<string, DayData>;
@@ -449,21 +448,6 @@ function todayDateValue() {
   return `${year}-${month}-${date}`;
 }
 
-function offsetDateValue(value: string, offset: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + offset);
-  return date.toISOString().slice(0, 10);
-}
-
-function dateHeading(value: string) {
-  if (!value) return "Tomorrow";
-  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export default function Home() {
   const [step, setStep] = useState<Step>("priorities");
   const [day, setDay] = useState("");
@@ -479,7 +463,6 @@ export default function Home() {
   const [quickKind, setQuickKind] = useState<ActivityKind>("routine");
   const [quickTaskId, setQuickTaskId] = useState<number | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
-  const [accepted, setAccepted] = useState(false);
   const [analysis, setAnalysis] = useState<DayAnalysis | null>(null);
   const [analysisFingerprint, setAnalysisFingerprint] = useState("");
   const [analysisUsedAI, setAnalysisUsedAI] = useState(false);
@@ -538,10 +521,9 @@ export default function Home() {
       else setTasks([]);
       if (/^\d{2}:\d{2}$/.test(savedDay?.wakeTime ?? "")) setWakeTime(savedDay?.wakeTime ?? "07:00");
       if (/^\d{2}:\d{2}$/.test(savedDay?.sleepTime ?? "")) setSleepTime(savedDay?.sleepTime ?? "23:00");
-      setAnalysis(savedDay?.analysis ?? null);
+      setAnalysis(savedDay?.analysis && Array.isArray(savedDay.analysis.suggestions) ? savedDay.analysis : null);
       setAnalysisFingerprint(savedDay?.analysisFingerprint ?? "");
       setAnalysisUsedAI(savedDay?.analysisUsedAI ?? false);
-      setAccepted(savedDay?.analysisAccepted ?? false);
       if (Array.isArray(parsed?.enabledSources)) {
         setEnabledSources(parsed.enabledSources.filter((id) => defaultSourceIds.includes(id)));
       } else {
@@ -588,7 +570,6 @@ export default function Home() {
             analysis,
             analysisFingerprint,
             analysisUsedAI,
-            analysisAccepted: accepted,
           },
         },
         day,
@@ -596,7 +577,7 @@ export default function Home() {
         enabledSources,
       }),
     );
-  }, [activities, tasks, day, wakeTime, sleepTime, theme, enabledSources, analysis, analysisFingerprint, analysisUsedAI, accepted, hydrated]);
+  }, [activities, tasks, day, wakeTime, sleepTime, theme, enabledSources, analysis, analysisFingerprint, analysisUsedAI, hydrated]);
 
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => a.start.localeCompare(b.start)),
@@ -649,9 +630,6 @@ export default function Home() {
     profileFocusGoal,
   }), [day, wakeTime, sleepTime, tasks, sortedActivities, enabledSources, profileChallenge, profileFocusGoal]);
 
-  const tomorrow = analysis?.tomorrowPlan ?? [];
-  const tomorrowDate = day ? offsetDateValue(day, 1) : "";
-
   async function analyzeDay(force = false) {
     if (analysisLoading || !tasks.length) return;
     setStep("insights");
@@ -688,57 +666,11 @@ export default function Home() {
       setAnalysis(result.analysis);
       setAnalysisFingerprint(currentAnalysisFingerprint);
       setAnalysisUsedAI(result.usedAI ?? false);
-      setAccepted(false);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "Resequence could not analyze this day.");
     } finally {
       setAnalysisLoading(false);
     }
-  }
-
-  function acceptTomorrowPlan() {
-    if (!analysis || !tomorrowDate) return;
-    let saved: SavedMvp = {};
-    try {
-      saved = JSON.parse(window.localStorage.getItem("resequence-mvp") || "{}") as SavedMvp;
-    } catch {
-      // A clean local record can still be created for tomorrow.
-    }
-    const days = saved.days ?? {};
-    const existingTomorrow = days[tomorrowDate];
-    if (existingTomorrow && ((existingTomorrow.activities?.length ?? 0) || (existingTomorrow.tasks?.length ?? 0))) {
-      setAnalysisError("Tomorrow already has activities or priorities. Open that day before replacing its plan.");
-      return;
-    }
-
-    const tomorrowTasks = tasks
-      .filter((task) => task.completion < 100)
-      .map((task) => ({ ...task, completion: 0 }));
-    const tomorrowTaskIds = new Set(tomorrowTasks.map((task) => task.id));
-    const baseId = Date.now();
-    const tomorrowActivities: Activity[] = analysis.tomorrowPlan.map((item, index) => ({
-      id: baseId + index,
-      title: item.title,
-      start: item.time,
-      end: timeFromMinutes(minutes(item.time) + item.durationMinutes),
-      kind: item.kind,
-      taskId: item.relatedTaskId !== null && tomorrowTaskIds.has(item.relatedTaskId) ? item.relatedTaskId : null,
-    }));
-
-    days[tomorrowDate] = {
-      activities: tomorrowActivities,
-      tasks: tomorrowTasks,
-      wakeTime,
-      sleepTime,
-      analysis: null,
-      analysisFingerprint: "",
-      analysisUsedAI: false,
-      analysisAccepted: false,
-    };
-    days[day] = { activities, tasks, wakeTime, sleepTime, analysis, analysisFingerprint, analysisUsedAI, analysisAccepted: true };
-    window.localStorage.setItem("resequence-mvp", JSON.stringify({ ...saved, days, day, theme, enabledSources }));
-    setAnalysisError(null);
-    setAccepted(true);
   }
 
   async function mapQuickNote() {
@@ -827,7 +759,6 @@ export default function Home() {
     setWakeTime("07:00");
     setSleepTime("23:00");
     setQuickTaskId(null);
-    setAccepted(false);
     setMoveNotice("Demo priorities and activities were loaded for today.");
   }
 
@@ -942,7 +873,7 @@ export default function Home() {
     } catch {
       // A new day can still begin if local history cannot be read.
     }
-    days[day] = { activities, tasks, wakeTime, sleepTime, analysis, analysisFingerprint, analysisUsedAI, analysisAccepted: accepted };
+    days[day] = { activities, tasks, wakeTime, sleepTime, analysis, analysisFingerprint, analysisUsedAI };
     const next = days[nextDay] ?? { activities: [], tasks: [], wakeTime: "07:00", sleepTime: "23:00" };
     window.localStorage.setItem("resequence-mvp", JSON.stringify({ days, day: nextDay, theme, enabledSources }));
     setDay(nextDay);
@@ -950,10 +881,9 @@ export default function Home() {
     setTasks(next.tasks);
     setWakeTime(next.wakeTime ?? "07:00");
     setSleepTime(next.sleepTime ?? "23:00");
-    setAnalysis(next.analysis ?? null);
+    setAnalysis(next.analysis && Array.isArray(next.analysis.suggestions) ? next.analysis : null);
     setAnalysisFingerprint(next.analysisFingerprint ?? "");
     setAnalysisUsedAI(next.analysisUsedAI ?? false);
-    setAccepted(next.analysisAccepted ?? false);
     setAnalysisError(null);
     setQuickTaskId(null);
   }
@@ -1453,32 +1383,34 @@ export default function Home() {
                 </article>
               </div>
 
-              <section className="tomorrow-section">
-                <div className="tomorrow-copy">
-                  <div className="eyebrow">A better sequence</div>
-                  <h2>Tomorrow, redesigned.</h2>
-                  <p>{analysis.tomorrowIntro}</p>
-                  <div className="change-list">
-                    {analysis.changes.map((change, index) => (
-                      <div key={change.title}><span>{index + 1}</span><p><b>{change.title}</b>{change.reason}</p></div>
-                    ))}
+              <section className="suggestions-section">
+                <div className="suggestions-heading">
+                  <div>
+                    <div className="eyebrow">Flexible guidance</div>
+                    <h2>Suggestions for tomorrow.</h2>
+                    <p>{analysis.suggestionsIntro}</p>
                   </div>
-                  <button className={accepted ? "accepted-button" : "primary-button"} onClick={acceptTomorrowPlan} disabled={accepted}>
-                    {accepted ? "✓ Added to tomorrow" : "Use this sequence tomorrow"}
-                  </button>
-                  <button className="text-button restart" onClick={startNextDay}>Open tomorrow</button>
+                  <div className="suggestions-evidence">Based on your day · <button onClick={() => setSourcesOpen(true)}>{enabledSources.length} sources active</button></div>
                 </div>
-                <div className="tomorrow-timeline">
-                  <div className="tomorrow-header"><span>{dateHeading(tomorrowDate)}</span><b>Suggested plan</b></div>
-                  {tomorrow.map((item, index) => (
-                    <div className="tomorrow-item" key={item.time + item.title}>
-                      <time>{friendlyTime(item.time)}</time>
-                      <span className={"tomorrow-dot kind-" + item.kind}>{String(index + 1).padStart(2, "0")}</span>
-                      <div><h3>{item.title}</h3><p>{item.note} · {durationLabel(item.durationMinutes)}</p></div>
-                    </div>
+                <div className="suggestion-grid">
+                  {analysis.suggestions.map((suggestion, index) => (
+                    <article className="suggestion-card" key={suggestion.title}>
+                      <div className="suggestion-number"><span>{String(index + 1).padStart(2, "0")}</span><b>{suggestion.confidence}</b></div>
+                      <h3>{suggestion.title}</h3>
+                      <p className="suggestion-action">{suggestion.action}</p>
+                      <div className="suggestion-anchor"><span>When it fits</span><b>{suggestion.anchor}</b></div>
+                      <div className="suggestion-detail"><span>Why this fits</span><p>{suggestion.reason}</p></div>
+                      <div className="suggestion-detail measure"><span>What to notice</span><p>{suggestion.successMeasure}</p></div>
+                      <div className="suggestion-sources">
+                        {suggestion.sourceIds.map((id) => {
+                          const source = evidenceSources.find((item) => item.id === id);
+                          return source ? <a key={id} href={source.url} target="_blank" rel="noreferrer">{source.authors}, {source.year} ↗</a> : null;
+                        })}
+                      </div>
+                    </article>
                   ))}
-                  <div className="plan-footnote">Built from your priorities · <button onClick={() => setSourcesOpen(true)}>{enabledSources.length} sources active</button></div>
                 </div>
+                <button className="text-button suggestion-next" type="button" onClick={startNextDay}>Plan tomorrow&apos;s priorities →</button>
               </section>
 
               <div className="disclaimer">

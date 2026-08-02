@@ -33,6 +33,6 @@ The project is a standard Next.js app and can be imported directly into Vercel. 
 1. Define that day's priorities, importance, and difficulty.
 2. Map activities, choose their type, and optionally connect them to a priority; AI only cleans Quick Capture text and timing.
 3. Report completion percentages or mark priorities finished.
-4. Review transparent, evidence-aware observations and a resequenced plan for tomorrow.
+4. Review transparent, evidence-aware observations and flexible suggestions for tomorrow.
 
-The score and timeline metrics are deterministic. When configured, AI interprets those facts using only the user's enabled sources from the curated evidence library and returns a structured debrief and tomorrow plan. A deterministic fallback keeps the demo working if the AI is unavailable. A future version can add authenticated persistence without changing the scoring formula.
+The score and timeline metrics are deterministic. When configured, AI interprets those facts using only the user's enabled sources from the curated evidence library and returns a structured debrief with flexible suggestions for tomorrow. It does not invent commitments or write a schedule. A deterministic fallback keeps the demo working if the AI is unavailable. A future version can add authenticated persistence without changing the scoring formula.

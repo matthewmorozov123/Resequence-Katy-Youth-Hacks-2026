@@ -38,13 +38,14 @@ type AnalysisInsight = {
   confidence: Confidence;
 };
 
-type TomorrowPlanItem = {
-  time: string;
+type TomorrowSuggestion = {
   title: string;
-  note: string;
-  kind: ActivityKind;
-  durationMinutes: number;
-  relatedTaskId: number | null;
+  action: string;
+  anchor: string;
+  reason: string;
+  successMeasure: string;
+  sourceIds: number[];
+  confidence: Confidence;
 };
 
 type DayAnalysis = {
@@ -53,9 +54,8 @@ type DayAnalysis = {
   worked: AnalysisInsight & { observation: string };
   friction: AnalysisInsight;
   experiment: AnalysisInsight & { ifThenPlan: string };
-  changes: { title: string; reason: string }[];
-  tomorrowIntro: string;
-  tomorrowPlan: TomorrowPlanItem[];
+  suggestionsIntro: string;
+  suggestions: TomorrowSuggestion[];
   caveat: string;
 };
 
@@ -173,11 +173,6 @@ function clockMinutes(value: string) {
   return hour * 60 + minute;
 }
 
-function timeFromMinutes(value: number) {
-  const safe = Math.max(0, Math.min(1439, Math.round(value)));
-  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
-}
-
 function durationMinutes(start: string, end: string) {
   const startValue = clockMinutes(start);
   const endValue = clockMinutes(end);
@@ -268,63 +263,6 @@ function availableSources(input: AnalyzeInput, preferred: number[]) {
   return preferred.filter((id) => input.enabledSourceIds.includes(id)).slice(0, 2);
 }
 
-function fallbackPlan(input: AnalyzeInput): TomorrowPlanItem[] {
-  const unfinished = [...input.tasks]
-    .filter((task) => task.completion < 100)
-    .sort((a, b) => b.importance * b.difficulty - a.importance * a.difficulty);
-  const wake = clockMinutes(input.wakeTime) ?? 420;
-  const longestFocus = [...input.activities]
-    .filter((activity) => activity.kind === "focus")
-    .sort((a, b) => durationMinutes(b.start, b.end) - durationMinutes(a.start, a.end))[0];
-  const observedFocus = longestFocus ? clockMinutes(longestFocus.start) : null;
-  const focusStart = Math.max(wake + 60, observedFocus ?? wake + 60);
-  const firstTask = unfinished[0];
-  const secondTask = unfinished[1];
-  const plan: TomorrowPlanItem[] = [
-    {
-      time: timeFromMinutes(wake),
-      title: "Morning routine",
-      note: "Keep the start realistic and leave room to wake up",
-      kind: "routine",
-      durationMinutes: 30,
-      relatedTaskId: null,
-    },
-    {
-      time: timeFromMinutes(focusStart),
-      title: firstTask?.title || "Highest-impact priority",
-      note: longestFocus ? "Placed near your longest observed focus window" : "A testable focus window—not a universal best time",
-      kind: "focus",
-      durationMinutes: 50,
-      relatedTaskId: firstTask?.id ?? null,
-    },
-    {
-      time: timeFromMinutes(focusStart + 50),
-      title: "Intentional reset",
-      note: "Take a short break with a clear return cue",
-      kind: "rest",
-      durationMinutes: 10,
-      relatedTaskId: null,
-    },
-    {
-      time: timeFromMinutes(focusStart + 60),
-      title: "Messages + phone window",
-      note: "Keep useful digital activity in a defined window",
-      kind: "digital",
-      durationMinutes: 20,
-      relatedTaskId: null,
-    },
-    {
-      time: timeFromMinutes(focusStart + 90),
-      title: secondTask?.title || "Second priority block",
-      note: "Begin with one concrete next action",
-      kind: "focus",
-      durationMinutes: 45,
-      relatedTaskId: secondTask?.id ?? null,
-    },
-  ];
-  return plan.filter((item) => (clockMinutes(item.time) ?? 1440) + item.durationMinutes < 1440);
-}
-
 function fallbackAnalysis(input: AnalyzeInput): DayAnalysis {
   const facts = calculateFacts(input);
   const unfinished = [...input.tasks]
@@ -389,12 +327,44 @@ function fallbackAnalysis(input: AnalyzeInput): DayAnalysis {
       sourceIds: experimentSources,
       confidence: experimentSources.length ? "Moderate" : "Exploratory",
     },
-    changes: [
-      { title: "Protect one clean start", reason: `Give ${topTask?.title || "the top priority"} a visible cue and a concrete first action.` },
-      { title: "Use a defined transition", reason: phoneChallenge ? "End planned phone time with a specific return action." : "Leave a short note before switching so returning requires less reconstruction." },
+    suggestionsIntro: "These are flexible anchors, not a schedule. Fit them around the commitments you already have and test only what feels realistic.",
+    suggestions: [
+      {
+        title: "Protect one clean start",
+        action: `Reduce ${topTask?.title || "your highest-impact priority"} to one concrete first action you can begin in five minutes.`,
+        anchor: "At your next available focus window",
+        reason: "Your highest-weight unfinished priority deserves a clear starting cue without assuming when tomorrow will be free.",
+        successMeasure: "Notice whether you begin the first action within five minutes of the cue.",
+        sourceIds: availableSources(input, [2, 6, 10]),
+        confidence: availableSources(input, [2, 6, 10]).length ? "Moderate" : "Exploratory",
+      },
+      {
+        title: phoneChallenge ? "Give phone time a visible ending" : "Leave yourself a return point",
+        action: phoneChallenge
+          ? "Use the phone intentionally, then stop at a self-chosen cue and open the next action for your priority."
+          : "Before switching away, write one sentence describing the exact action you will resume with.",
+        anchor: phoneChallenge ? "After planned phone use" : "Before changing to a different activity",
+        reason: phoneChallenge
+          ? "This keeps useful phone time while making the return transition easier to observe."
+          : `Your day contained ${facts.contextSwitches} changes between activity types, so one clearer return point is worth testing.`,
+        successMeasure: phoneChallenge ? "Notice whether you return without reopening another app." : "Notice how long it takes to resume the original task.",
+        sourceIds: phoneChallenge ? availableSources(input, [4, 5, 1]) : availableSources(input, [1, 3]),
+        confidence: (phoneChallenge ? availableSources(input, [4, 5, 1]) : availableSources(input, [1, 3])).length ? "Moderate" : "Exploratory",
+      },
+      {
+        title: sleepChallenge ? "Protect the sleep boundary" : "Make one break intentional",
+        action: sleepChallenge
+          ? "Keep optional work inside your normal awake window instead of extending the day to improve one score."
+          : "Choose one short break with a clear ending, then compare the next block with an unplanned break.",
+        anchor: sleepChallenge ? "Before adding optional work late in the day" : "Between two demanding activities",
+        reason: sleepChallenge
+          ? "Sleep guidance is a health guardrail, not a productivity judgment."
+          : "Short breaks may help fatigue or vigor, but their effect on performance varies by person and task.",
+        successMeasure: sleepChallenge ? "Notice whether the planned sleep window stays protected." : "Rate how easy it is to start the next activity from one to five.",
+        sourceIds: sleepChallenge ? availableSources(input, [9, 10]) : availableSources(input, [7, 8]),
+        confidence: (sleepChallenge ? availableSources(input, [9, 10]) : availableSources(input, [7, 8])).length ? "Moderate" : "Exploratory",
+      },
     ],
-    tomorrowIntro: "This sequence changes only a few boundaries. Keep what already fits, test one behavior, and adjust the timing after observing the result.",
-    tomorrowPlan: fallbackPlan(input),
     caveat: "Insights describe observed patterns and evidence-informed hypotheses. They do not prove what caused productivity, diagnose a condition, or replace medical advice.",
   };
 }
@@ -439,39 +409,29 @@ const responseSchema = {
       required: ["title", "explanation", "ifThenPlan", "sourceIds", "confidence"],
       additionalProperties: false,
     },
-    changes: {
+    suggestionsIntro: { type: "string" },
+    suggestions: {
       type: "array",
-      minItems: 2,
-      maxItems: 2,
-      items: {
-        type: "object",
-        properties: { title: { type: "string" }, reason: { type: "string" } },
-        required: ["title", "reason"],
-        additionalProperties: false,
-      },
-    },
-    tomorrowIntro: { type: "string" },
-    tomorrowPlan: {
-      type: "array",
-      minItems: 4,
-      maxItems: 7,
+      minItems: 3,
+      maxItems: 3,
       items: {
         type: "object",
         properties: {
-          time: { type: "string" },
           title: { type: "string" },
-          note: { type: "string" },
-          kind: { type: "string", enum: activityKinds },
-          durationMinutes: { type: "integer", minimum: 10, maximum: 120 },
-          relatedTaskId: { type: ["integer", "null"] },
+          action: { type: "string" },
+          anchor: { type: "string" },
+          reason: { type: "string" },
+          successMeasure: { type: "string" },
+          sourceIds: { type: "array", items: { type: "integer" }, maxItems: 3 },
+          confidence: { type: "string", enum: ["High", "Moderate", "Exploratory"] },
         },
-        required: ["time", "title", "note", "kind", "durationMinutes", "relatedTaskId"],
+        required: ["title", "action", "anchor", "reason", "successMeasure", "sourceIds", "confidence"],
         additionalProperties: false,
       },
     },
     caveat: { type: "string" },
   },
-  required: ["headline", "summary", "worked", "friction", "experiment", "changes", "tomorrowIntro", "tomorrowPlan", "caveat"],
+  required: ["headline", "summary", "worked", "friction", "experiment", "suggestionsIntro", "suggestions", "caveat"],
   additionalProperties: false,
 } as const;
 
@@ -497,45 +457,31 @@ function normalizeAnalysis(value: unknown, input: AnalyzeInput): DayAnalysis | n
   if (!workedBase || !friction || !experimentBase || !isRecord(value.worked) || !isRecord(value.experiment)) return null;
   const observation = cleanText(value.worked.observation, 180);
   const ifThenPlan = cleanText(value.experiment.ifThenPlan, 260);
-  const changes = Array.isArray(value.changes) ? value.changes.slice(0, 2).flatMap((item) => {
+  const suggestions = Array.isArray(value.suggestions) ? value.suggestions.slice(0, 3).flatMap((item) => {
     if (!isRecord(item)) return [];
-    const title = cleanText(item.title, 90);
-    const reason = cleanText(item.reason, 240);
-    return title && reason ? [{ title, reason }] : [];
+    const title = cleanText(item.title, 100);
+    const action = cleanText(item.action, 360);
+    const anchor = cleanText(item.anchor, 130);
+    const reason = cleanText(item.reason, 360);
+    const successMeasure = cleanText(item.successMeasure, 240);
+    const confidence = ["High", "Moderate", "Exploratory"].includes(String(item.confidence)) ? item.confidence as Confidence : "Exploratory";
+    if (!title || !action || !anchor || !reason || !successMeasure) return [];
+    return [{ title, action, anchor, reason, successMeasure, confidence, sourceIds: normalizedSourceIds(item.sourceIds, input) }];
   }) : [];
-  const validTaskIds = new Set(input.tasks.filter((task) => task.completion < 100).map((task) => task.id));
-  let previousEnd = -1;
-  const tomorrowPlan = (Array.isArray(value.tomorrowPlan) ? value.tomorrowPlan : [])
-    .flatMap((item) => {
-      if (!isRecord(item)) return [];
-      const originalStart = clockMinutes(cleanText(item.time, 5));
-      const title = cleanText(item.title, 100);
-      const note = cleanText(item.note, 260);
-      const kind = activityKinds.includes(item.kind as ActivityKind) ? item.kind as ActivityKind : null;
-      const itemDuration = clampInteger(item.durationMinutes, 10, 120, 30);
-      if (originalStart === null || !title || !note || !kind) return [];
-      const start = Math.max(originalStart, previousEnd);
-      if (start + itemDuration >= 1440) return [];
-      previousEnd = start + itemDuration;
-      const relatedTaskId = validTaskIds.has(Number(item.relatedTaskId)) ? Number(item.relatedTaskId) : null;
-      return [{ time: timeFromMinutes(start), title, note, kind, durationMinutes: itemDuration, relatedTaskId }];
-    })
-    .slice(0, 7);
-  if (!observation || !ifThenPlan || changes.length !== 2 || tomorrowPlan.length < 4) return null;
+  if (!observation || !ifThenPlan || suggestions.length !== 3) return null;
   const headline = cleanText(value.headline, 120);
   const summary = cleanText(value.summary, 520);
-  const tomorrowIntro = cleanText(value.tomorrowIntro, 420);
+  const suggestionsIntro = cleanText(value.suggestionsIntro, 420);
   const caveat = cleanText(value.caveat, 420);
-  if (!headline || !summary || !tomorrowIntro || !caveat) return null;
+  if (!headline || !summary || !suggestionsIntro || !caveat) return null;
   return {
     headline,
     summary,
     worked: { ...workedBase, observation },
     friction,
     experiment: { ...experimentBase, ifThenPlan },
-    changes,
-    tomorrowIntro,
-    tomorrowPlan,
+    suggestionsIntro,
+    suggestions,
     caveat,
   };
 }
@@ -560,8 +506,9 @@ async function analyzeWithAI(input: AnalyzeInput) {
           "Treat source limitations seriously. Do not claim causation from one day. Do not recommend cold showers or a universal no-phone first hour. " +
           "Do not assume difficult work belongs in the morning; use observed timing when possible and label timing suggestions as experiments. " +
           "Protect the user's stated sleep window. Recommend one small, measurable experiment linked to the user's challenge and desired change. " +
-          "The tomorrow plan must contain 4-7 non-overlapping items in chronological order using 24-hour HH:MM times. " +
-          "Use only unfinished task IDs for relatedTaskId, otherwise null. Keep the plan realistic and editable. " +
+          "Return exactly three flexible suggestions, not a schedule. Do not invent tomorrow's commitments or assign clock times. " +
+          "Each suggestion must use an event-based anchor such as after planned phone use, before switching activities, or at the next available focus window. " +
+          "Explain why each suggestion fits the recorded day and give one simple success measure the user can observe. " +
           "The day score and metrics are deterministic facts; interpret them but do not recalculate or contradict them.",
       },
       {
