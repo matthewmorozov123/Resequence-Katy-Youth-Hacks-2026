@@ -125,11 +125,6 @@ export default function Home() {
   const [quickCaptureError, setQuickCaptureError] = useState<string | null>(null);
   const [quickKind, setQuickKind] = useState<ActivityKind>("routine");
   const [quickTaskId, setQuickTaskId] = useState<number | null>(null);
-  const [activityTitle, setActivityTitle] = useState("");
-  const [activityStart, setActivityStart] = useState("13:30");
-  const [activityEnd, setActivityEnd] = useState("14:00");
-  const [activityKind, setActivityKind] = useState<ActivityKind>("focus");
-  const [activityTaskId, setActivityTaskId] = useState<number | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -230,23 +225,6 @@ export default function Home() {
     { time: "10:15", title: secondTask?.title || "Second priority task", note: "50-minute focus block", kind: "focus" },
   ];
 
-  function addActivity(event: React.FormEvent) {
-    event.preventDefault();
-    if (!activityTitle.trim() || minutes(activityEnd) <= minutes(activityStart)) return;
-    setActivities((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        title: activityTitle.trim(),
-        start: activityStart,
-        end: activityEnd,
-        kind: activityKind,
-        taskId: activityTaskId,
-      },
-    ]);
-    setActivityTitle("");
-  }
-
   async function mapQuickNote() {
     const note = quickNote.trim();
     if (!note || quickCaptureLoading) return;
@@ -328,7 +306,6 @@ export default function Home() {
       activity.taskId === id ? { ...activity, taskId: null } : activity,
     ));
     if (quickTaskId === id) setQuickTaskId(null);
-    if (activityTaskId === id) setActivityTaskId(null);
     if (editActivityTaskId === id) setEditActivityTaskId(null);
   }
 
@@ -441,7 +418,6 @@ export default function Home() {
     setActivities(next.activities);
     setTasks(next.tasks);
     setQuickTaskId(null);
-    setActivityTaskId(null);
     setAccepted(false);
   }
 
@@ -714,36 +690,6 @@ export default function Home() {
                 <p className="helper-text">You choose the type and related priority. AI only cleans the name, time, and duration.</p>
               )}
             </div>
-
-            <form className="add-form" onSubmit={addActivity}>
-              <span className="section-kicker">Add an activity</span>
-              <label>
-                <span>What did you do?</span>
-                <input
-                  value={activityTitle}
-                  onChange={(event) => setActivityTitle(event.target.value)}
-                  placeholder="e.g. Algebra homework"
-                />
-              </label>
-              <div className="form-row">
-                <label><span>Started</span><input type="time" value={activityStart} onChange={(event) => setActivityStart(event.target.value)} /></label>
-                <label><span>Ended</span><input type="time" value={activityEnd} onChange={(event) => setActivityEnd(event.target.value)} /></label>
-              </div>
-              <label>
-                <span>Activity type</span>
-                <select value={activityKind} onChange={(event) => setActivityKind(event.target.value as ActivityKind)}>
-                  {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>Related priority</span>
-                <select value={activityTaskId ?? ""} onChange={(event) => setActivityTaskId(event.target.value ? Number(event.target.value) : null)}>
-                  <option value="">Not connected</option>
-                  {tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
-                </select>
-              </label>
-              <button className="primary-button" type="submit">Add to my day <span>+</span></button>
-            </form>
 
             <div className="privacy-note">
               <span className="privacy-icon">⌁</span>
