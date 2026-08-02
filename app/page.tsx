@@ -925,7 +925,11 @@ export default function Home() {
     <main className="app-shell" data-theme={theme}>
       <header className="topbar">
         <button className="brand" onClick={() => setStep("priorities")} aria-label="Resequence home">
-          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+          <span className="brand-mark" aria-hidden="true">
+            <span className="brand-r-stem" />
+            <span className="brand-r-bowl" />
+            <span className="brand-r-leg" />
+          </span>
           <span>RESEQUENCE</span>
         </button>
         <div className="topbar-actions">
