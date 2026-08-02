@@ -349,6 +349,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-shell[data-theme="dark"] .topbar { background: rgba(11,20,33,.92); }
 .app-shell[data-theme="dark"] .sticky-action { background: rgba(11,20,33,.94); }
 .app-shell[data-theme="dark"] .task-row { background: rgba(255,255,255,.025); }
+.app-shell[data-theme="dark"] .new-task input { color: #fff; }
+.app-shell[data-theme="dark"] .new-task input::placeholder { color: #fff; opacity: 1; }
 .app-shell[data-theme="dark"] .day-settings { background: rgba(255,255,255,.025); }
 .app-shell[data-theme="dark"] .activity-card { border-color: rgba(255,255,255,.12); }
 .app-shell[data-theme="dark"] .activity-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,.25); }
