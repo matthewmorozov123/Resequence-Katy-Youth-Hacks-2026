@@ -941,7 +941,7 @@ export default function Home() {
               <input
                 value={profileDraft}
                 onChange={(event) => setProfileDraft(event.target.value)}
-                placeholder="e.g. Alex Rivera"
+                placeholder="e.g. Bill Gates"
                 autoComplete="name"
                 maxLength={60}
                 autoFocus
