@@ -1,0 +1,21 @@
+Hello, this is Matthew and I would like to show you Resequence.
+
+Resequence is an evidence-aware coach that turns a real day into personalized guidance instead of generic productivity rules.
+
+On the first visit, users enter their name, choose their main productivity challenge, and describe what they want to change. This gives the analysis a personal target instead of a generic routine.
+
+Then, users choose today's priorities, rate their importance and difficulty, and can load a sample day with one click.
+
+The timeline records what actually happened. Quick Capture turns a natural sentence with a time and duration into a timeline entry.
+
+Once it is there, the activity can be renamed. Its duration can be changed. And it can be moved. It can also be connected to a priority.
+
+In Outcomes, users report their progress. Partial completion counts, producing a more honest result than a simple checklist.
+
+Before the AI analysis, users open the evidence library. Each source shows its supported claims and limitations and can be turned on or off. The AI uses only enabled sources.
+
+Finally, Resequence combines the timeline, outcomes, personal challenge, and enabled research. The debrief explains what worked, identifies possible friction, and recommends one small experiment.
+
+It then gives three flexible suggestions for tomorrow, each with an anchor, success measure, and evidence. It does not invent a schedule or claim that one day proves causation.
+
+The result is personalized, transparent advice that helps users make a better next decision. That is Resequence: learn from today, and improve tomorrow.
