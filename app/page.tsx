@@ -655,6 +655,7 @@ export default function Home() {
     : productivityChallenges.find((challenge) => challenge.value === profileFocusArea)?.label ?? profileFocusArea;
 
   const currentAnalysisFingerprint = useMemo(() => JSON.stringify({
+    analysisVersion: 2,
     day,
     wakeTime,
     sleepTime,

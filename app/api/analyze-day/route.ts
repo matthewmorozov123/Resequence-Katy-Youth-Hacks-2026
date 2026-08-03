@@ -158,7 +158,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function cleanText(value: unknown, maximum: number) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, maximum) : "";
+  if (typeof value !== "string") return "";
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length <= maximum) return normalized;
+  const clipped = normalized.slice(0, maximum + 1);
+  const wordBoundary = clipped.lastIndexOf(" ");
+  const shortened = (wordBoundary > maximum * .6 ? clipped.slice(0, wordBoundary) : normalized.slice(0, maximum))
+    .replace(/[,:;–—-]+$/u, "")
+    .trim();
+  return shortened + "…";
 }
 
 function clampInteger(value: unknown, minimum: number, maximum: number, fallback: number) {
@@ -292,7 +300,7 @@ function fallbackAnalysis(input: AnalyzeInput): DayAnalysis {
 
   return {
     headline: facts.weightedTaskScore >= 70 ? "Good progress. One useful shift." : "An honest day. One clearer next step.",
-    summary: `You completed ${facts.weightedTaskScore}% of your weighted priority value and recorded ${facts.priorityMinutes} minutes connected to priorities. The next plan focuses on ${input.profile.desiredChange.toLowerCase()}.`,
+    summary: `You completed ${facts.weightedTaskScore}% of your weighted priorities and logged ${facts.priorityMinutes} priority minutes. Tomorrow's suggestions focus on ${input.profile.desiredChange.toLowerCase()}.`,
     worked: {
       title: completed ? "You closed the loop on meaningful work." : "You recorded enough detail to improve the sequence.",
       explanation: completed
@@ -469,8 +477,8 @@ function normalizeAnalysis(value: unknown, input: AnalyzeInput): DayAnalysis | n
     return [{ title, action, anchor, reason, successMeasure, confidence, sourceIds: normalizedSourceIds(item.sourceIds, input) }];
   }) : [];
   if (!observation || !ifThenPlan || suggestions.length !== 3) return null;
-  const headline = cleanText(value.headline, 120);
-  const summary = cleanText(value.summary, 520);
+  const headline = cleanText(value.headline, 64);
+  const summary = cleanText(value.summary, 300);
   const suggestionsIntro = cleanText(value.suggestionsIntro, 420);
   const caveat = cleanText(value.caveat, 420);
   if (!headline || !summary || !suggestionsIntro || !caveat) return null;
@@ -506,6 +514,7 @@ async function analyzeWithAI(input: AnalyzeInput) {
           "Treat source limitations seriously. Do not claim causation from one day. Do not recommend cold showers or a universal no-phone first hour. " +
           "Do not assume difficult work belongs in the morning; use observed timing when possible and label timing suggestions as experiments. " +
           "Protect the user's stated sleep window. Recommend one small, measurable experiment linked to the user's challenge and desired change. " +
+          "Keep headline to one sentence of no more than 9 words or 64 characters. Keep summary to no more than 2 short sentences and 45 words total. " +
           "Return exactly three flexible suggestions, not a schedule. Do not invent tomorrow's commitments or assign clock times. " +
           "Each suggestion must use an event-based anchor such as after planned phone use, before switching activities, or at the next available focus window. " +
           "Explain why each suggestion fits the recorded day and give one simple success measure the user can observe. " +
